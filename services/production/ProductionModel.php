@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Production;
 
+use Atelier\Organisation\OrganisationModel;
+use Atelier\Person\PersonModel;
 use Atelier\Support\PublicModel;
 
 defined('ABSPATH') || exit;
@@ -21,7 +23,8 @@ final class ProductionModel
     /**
      * Credits are one relation field per role: core refuses a relation inside
      * a repeater row. A site adds or relabels roles through
-     * ntdst/production/fields; every `credit_` relation to a person is a role.
+     * ntdst/production/fields; every `credit_` relation to a person is a role
+     * (ProductionRepository::roleFields()).
      */
     public const ROLE_PREFIX = 'credit_';
 
@@ -31,34 +34,11 @@ final class ProductionModel
             'supports'   => ['title', 'editor', 'thumbnail', 'excerpt'],
             'menu_icon'  => 'dashicons-tickets-alt',
             'taxonomies' => [
-                'production_stage'    => PublicModel::taxonomy('Stages', 'Stage', self::STAGES),
+                'production_stage'    => PublicModel::taxonomy('Stages', 'Stage', self::STAGES, 'in_creation'),
                 'production_language' => PublicModel::taxonomy('Languages', 'Language'),
                 'production_audience' => PublicModel::taxonomy('Audiences', 'Audience'),
             ],
         ]);
-    }
-
-    /**
-     * The credit roles as registered — after site filters, so a role a site
-     * adds counts. Key => label.
-     *
-     * @return array<string, string>
-     */
-    public static function roleFields(): array
-    {
-        $roles = [];
-
-        foreach (ntdst_data()->get(self::POST_TYPE)->getSchema() as $key => $field) {
-            if (
-                str_starts_with((string) $key, self::ROLE_PREFIX)
-                && ($field['type'] ?? '') === 'relation'
-                && ($field['post_type'] ?? '') === 'person'
-            ) {
-                $roles[$key] = $field['label'] ?? ucwords(str_replace('_', ' ', substr($key, strlen(self::ROLE_PREFIX))));
-            }
-        }
-
-        return $roles;
     }
 
     private static function fields(): array
@@ -95,14 +75,14 @@ final class ProductionModel
                     'name' => ['type' => 'text', 'label' => 'Name'],
                 ],
             ],
-            'coproducers' => ['type' => 'relation', 'post_type' => 'organisation', 'multiple' => true],
-            'funders'     => ['type' => 'relation', 'post_type' => 'organisation', 'multiple' => true],
+            'coproducers' => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
+            'funders'     => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
         ];
     }
 
     private static function people(string $role): array
     {
-        return ['type' => 'relation', 'post_type' => 'person', 'multiple' => true, 'label' => $role];
+        return ['type' => 'relation', 'post_type' => PersonModel::POST_TYPE, 'multiple' => true, 'label' => $role];
     }
 
     // `select` sanitizes but does not validate: its options are a UI list,

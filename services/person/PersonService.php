@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Person;
 
-use Atelier\Support\Schema;
+use ntdst\baseline\services\SeoService;
 use WP_Post;
 
 defined('ABSPATH') || exit;
@@ -32,7 +32,7 @@ final class PersonService
             '@context'    => 'https://schema.org',
             '@type'       => 'Person',
             'name'        => get_the_title($post),
-            'description' => Schema::description($post),
+            'description' => SeoService::describePost($post),
             'url'         => get_permalink($post),
             'image'       => get_the_post_thumbnail_url($post, 'large') ?: null,
         ], static fn($value): bool => $value !== null && $value !== '');

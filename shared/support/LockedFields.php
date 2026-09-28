@@ -8,8 +8,8 @@ defined('ABSPATH') || exit;
 
 /**
  * A site may relabel or extend an atelier model's fields, but not remove the
- * ones atelier's own code reads: a production without `stage` would drop out
- * of every list without an error.
+ * ones atelier's own code reads: a production without `premiere_year` would
+ * lose its year from every list and its JSON-LD without an error.
  */
 final class LockedFields
 {

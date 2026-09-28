@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Support\Schema;
+use ntdst\baseline\services\SeoService;
 use WP_Post;
 
 defined('ABSPATH') || exit;
@@ -32,7 +33,7 @@ final class ProductionService
         $fields = is_wp_error($production) ? [] : $production->fields;
 
         $people = [];
-        foreach (array_keys(ProductionModel::roleFields()) as $role) {
+        foreach (array_keys($this->repository->roleFields()) as $role) {
             foreach ((array) ($fields[$role] ?? []) as $id) {
                 $people[(int) $id] = true;
             }
@@ -42,7 +43,7 @@ final class ProductionService
             '@context'        => 'https://schema.org',
             '@type'           => 'CreativeWork',
             'name'            => get_the_title($post),
-            'description'     => Schema::description($post),
+            'description'     => SeoService::describePost($post),
             'url'             => get_permalink($post),
             'image'           => get_the_post_thumbnail_url($post, 'large') ?: null,
             'dateCreated'     => empty($fields['premiere_year']) ? null : (string) $fields['premiere_year'],

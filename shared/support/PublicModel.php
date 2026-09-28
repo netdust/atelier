@@ -45,13 +45,17 @@ final class PublicModel
      * editors may assign a term but never invent one — a stage nobody's list
      * knows would drop a production out of every list.
      *
+     * With a `$default`, the post holds exactly one term: radio buttons, and
+     * the default when none was picked.
+     *
      * @param array<string, string> $terms slug => name
      */
-    public static function taxonomy(string $plural, string $singular, array $terms = []): array
+    public static function taxonomy(string $plural, string $singular, array $terms = [], ?string $default = null): array
     {
         $args = [
             'labels'             => ['name' => $plural, 'singular_name' => $singular],
             'publicly_queryable' => false,
+            'show_in_nav_menus'  => false,
             'rewrite'            => false,
             'show_in_rest'       => false,
             'show_admin_column'  => true,
@@ -60,6 +64,11 @@ final class PublicModel
 
         if ($terms === []) {
             return $args;
+        }
+
+        if ($default !== null) {
+            $args['default_term'] = ['name' => $terms[$default], 'slug' => $default];
+            $args['meta_box_cb'] = [SingleTermBox::class, 'render'];
         }
 
         return $args + [
