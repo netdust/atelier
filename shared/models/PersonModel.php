@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Atelier\Person;
+namespace Atelier\Models;
 
 use Atelier\Support\PublicModel;
 
