@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Support\Labels;
+use Atelier\Support\LockedFields;
+use Atelier\Support\RewriteGuard;
 
 defined('ABSPATH') || exit;
 
@@ -14,8 +16,14 @@ final class ProductionModel
     public const STAGES = ['in_creation', 'touring', 'archive'];
     public const KINDS = ['premiere', 'rerun', 'also'];
 
+    /** Read by atelier's own lists; a site may relabel them, never remove them. */
+    public const LOCKED = ['premiere_year', 'kind', 'stage'];
+
     public static function register(array $config): void
     {
+        LockedFields::guard(self::POST_TYPE, self::fields(), self::LOCKED);
+        RewriteGuard::track(self::POST_TYPE, $config['slug'], (string) $config['archive']);
+
         ntdst_data()->register(self::POST_TYPE, [
             'meta_prefix'        => '_atelier_production_',
             // core registers the WordPress post type only when `label` is set
