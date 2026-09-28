@@ -14,3 +14,7 @@
  */
 
 defined('ABSPATH') || exit;
+
+// Read once by baseline's yootheme module, inside ntdst/model/registered, so
+// it must exist before any model registers — and whether or not YOOtheme does.
+add_filter('ntdst/baseline/yootheme/exclude_fields', [\Atelier\Support\PrivateFields::class, 'exclude'], 10, 2);
