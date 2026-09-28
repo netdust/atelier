@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Production;
 
-use Atelier\Person\PersonModel;
+use Atelier\Models\PersonModel;
 use NTDST_FieldTypes;
 use WP_Error;
 use WP_Post;

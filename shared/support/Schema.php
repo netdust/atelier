@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Support;
 
-use Atelier\Person\PersonRepository;
+use Atelier\Models\PersonRepository;
 use WP_Post;
 
 defined('ABSPATH') || exit;

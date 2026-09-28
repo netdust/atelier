@@ -41,6 +41,8 @@ final class PublicModel
 
     /**
      * A taxonomy the builder can filter on, with no public archive of its own.
+     * It stays in nav menus: YOOtheme only offers taxonomies that are public
+     * AND show_in_nav_menus (builder-wordpress-source Helper::$arguments).
      * Given terms, the vocabulary is fixed: seeded, shown as checkboxes, and
      * editors may assign a term but never invent one — a stage nobody's list
      * knows would drop a production out of every list.
@@ -55,7 +57,6 @@ final class PublicModel
         $args = [
             'labels'             => ['name' => $plural, 'singular_name' => $singular],
             'publicly_queryable' => false,
-            'show_in_nav_menus'  => false,
             'rewrite'            => false,
             'show_in_rest'       => false,
             'show_admin_column'  => true,

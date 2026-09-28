@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Atelier\Person;
+namespace Atelier\Models;
 
 use WP_Error;
 use WP_Post;

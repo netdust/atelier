@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Support;
 
-use Atelier\Organisation\OrganisationModel;
-use Atelier\Person\PersonModel;
+use Atelier\Models\OrganisationModel;
+use Atelier\Models\PersonModel;
 
 defined('ABSPATH') || exit;
 
