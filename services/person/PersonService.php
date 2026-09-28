@@ -32,5 +32,10 @@ final class PersonService implements NTDST_Service_Meta
     private function init(): void
     {
         PersonModel::register(apply_filters('ntdst/service/person/config', self::DEFAULTS));
+
+        // The builder queries need YOOtheme; without the parent theme they stay inert.
+        if (function_exists('YOOtheme\\app')) {
+            require_once __DIR__ . '/yootheme.php';
+        }
     }
 }

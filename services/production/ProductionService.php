@@ -32,5 +32,10 @@ final class ProductionService implements NTDST_Service_Meta
     private function init(): void
     {
         ProductionModel::register(apply_filters('ntdst/service/production/config', self::DEFAULTS));
+
+        // The builder queries need YOOtheme; without the parent theme they stay inert.
+        if (function_exists('YOOtheme\\app')) {
+            require_once __DIR__ . '/yootheme.php';
+        }
     }
 }

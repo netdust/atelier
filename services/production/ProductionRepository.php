@@ -31,6 +31,45 @@ final class ProductionRepository
     }
 
     /**
+     * What tours now or is being made, newest premiere first.
+     *
+     * @return list<WP_Post>
+     */
+    public function touring(): array
+    {
+        $rows = ntdst_data()->get(ProductionModel::POST_TYPE)
+            ->where('post_status', 'publish')
+            ->whereIn('stage', ['touring', 'in_creation'])
+            ->withMeta()
+            ->get();
+
+        usort($rows, static fn(array $a, array $b): int => self::byYear($a, $b) ?: strcmp($a['title'], $b['title']));
+
+        return self::posts($rows);
+    }
+
+    /**
+     * Every published production, newest premiere first; within a year a
+     * premiere before a rerun before an "and also".
+     *
+     * @return list<WP_Post>
+     */
+    public function previously(): array
+    {
+        $rows = ntdst_data()->get(ProductionModel::POST_TYPE)
+            ->where('post_status', 'publish')
+            ->withMeta()
+            ->get();
+
+        $kind = static fn(array $row): int => (int) array_search($row['meta']['kind'] ?? '', ProductionModel::KINDS, true);
+        usort($rows, static fn(array $a, array $b): int => self::byYear($a, $b)
+            ?: ($kind($a) <=> $kind($b))
+            ?: strcmp($a['title'], $b['title']));
+
+        return self::posts($rows);
+    }
+
+    /**
      * The published productions that credit this person, newest premiere
      * first, each with the role labels the person holds on it. `$role`
      * narrows to one role field; a field that is not a role answers nothing.
@@ -58,7 +97,7 @@ final class ProductionRepository
             ->withMeta()
             ->get();
 
-        usort($rows, static fn(array $a, array $b): int => ($b['meta']['premiere_year'] ?? 0) <=> ($a['meta']['premiere_year'] ?? 0));
+        usort($rows, [self::class, 'byYear']);
 
         $credits = [];
         foreach ($rows as $row) {
@@ -78,5 +117,22 @@ final class ProductionRepository
         }
 
         return $credits;
+    }
+
+    private static function byYear(array $a, array $b): int
+    {
+        return ($b['meta']['premiere_year'] ?? 0) <=> ($a['meta']['premiere_year'] ?? 0);
+    }
+
+    /**
+     * YOOtheme's types resolve from WP_Post; the chain's get() returns arrays.
+     *
+     * @return list<WP_Post>
+     */
+    private static function posts(array $rows): array
+    {
+        return array_values(array_filter(
+            array_map(static fn(array $row): ?WP_Post => get_post((int) $row['id']), $rows),
+        ));
     }
 }
