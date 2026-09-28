@@ -36,6 +36,29 @@ final class ProductionModel
         ]);
     }
 
+    /**
+     * The credit roles as registered — after site filters, so a role a site
+     * adds counts. Key => label.
+     *
+     * @return array<string, string>
+     */
+    public static function roleFields(): array
+    {
+        $roles = [];
+
+        foreach (ntdst_data()->get(self::POST_TYPE)->getSchema() as $key => $field) {
+            if (
+                str_starts_with((string) $key, self::ROLE_PREFIX)
+                && ($field['type'] ?? '') === 'relation'
+                && ($field['post_type'] ?? '') === 'person'
+            ) {
+                $roles[$key] = $field['label'] ?? ucwords(str_replace('_', ' ', substr($key, strlen(self::ROLE_PREFIX))));
+            }
+        }
+
+        return $roles;
+    }
+
     private static function fields(): array
     {
         return [

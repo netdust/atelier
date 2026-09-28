@@ -1,1 +1,1 @@
-{"version":2,"defects":{"AtelierTests\\Unit\\Support\\LabelsTest::test_expand_derives_missing_labels_from_names":8},"times":{"AtelierTests\\Unit\\Support\\LabelsTest::test_expand_derives_missing_labels_from_names":0.002}}
+{"version":2,"defects":{"AtelierTests\\Unit\\Support\\LabelsTest::test_expand_derives_missing_labels_from_names":8},"times":{"AtelierTests\\Unit\\Support\\LabelsTest::test_expand_derives_missing_labels_from_names":0.003}}
