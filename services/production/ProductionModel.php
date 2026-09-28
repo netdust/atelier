@@ -11,11 +11,12 @@ defined('ABSPATH') || exit;
 final class ProductionModel
 {
     public const POST_TYPE = 'production';
-    public const STAGES = ['in_creation', 'touring', 'archive'];
+    /** Terms of production_stage: a taxonomy, so the builder filters "touring" natively. */
+    public const STAGES = ['in_creation' => 'In creation', 'touring' => 'Touring', 'archive' => 'Archive'];
     public const KINDS = ['premiere', 'rerun', 'also'];
 
     /** Read by atelier's own lists; a site may relabel them, never remove them. */
-    public const LOCKED = ['premiere_year', 'kind', 'stage'];
+    public const LOCKED = ['premiere_year', 'kind'];
 
     /**
      * Credits are one relation field per role: core refuses a relation inside
@@ -30,6 +31,7 @@ final class ProductionModel
             'supports'   => ['title', 'editor', 'thumbnail', 'excerpt'],
             'menu_icon'  => 'dashicons-tickets-alt',
             'taxonomies' => [
+                'production_stage'    => PublicModel::taxonomy('Stages', 'Stage', self::STAGES),
                 'production_language' => PublicModel::taxonomy('Languages', 'Language'),
                 'production_audience' => PublicModel::taxonomy('Audiences', 'Audience'),
             ],
@@ -68,7 +70,6 @@ final class ProductionModel
                 'validate' => static fn($year) => ((int) $year >= 1900 && (int) $year <= 2100) ?: 'premiere_year must be between 1900 and 2100',
             ],
             'kind'          => self::oneOf(self::KINDS),
-            'stage'         => self::oneOf(self::STAGES),
             'min_age'       => ['type' => 'int'],
             'runtime'       => ['type' => 'int', 'description' => 'Minutes'],
             'trailer_url'   => ['type' => 'url'],

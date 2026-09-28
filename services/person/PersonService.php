@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Atelier\Person;
 
 use Atelier\Support\Schema;
-use NTDST_Service_Meta;
 use WP_Post;
 
 defined('ABSPATH') || exit;
 
-final class PersonService implements NTDST_Service_Meta
+final class PersonService
 {
     private const DEFAULTS = [
         'slug'    => 'people',
@@ -21,14 +20,6 @@ final class PersonService implements NTDST_Service_Meta
     public function __construct()
     {
         $this->init();
-    }
-
-    public static function metadata(): array
-    {
-        return [
-            'description' => 'People: a page per person, with credits read back from productions.',
-            'priority'    => 10,
-        ];
     }
 
     /**
@@ -52,10 +43,5 @@ final class PersonService implements NTDST_Service_Meta
         add_filter('ntdst/baseline/schema/post_type/person', [$this, 'schema'], 10, 2);
 
         PersonModel::register(apply_filters('ntdst/service/person/config', self::DEFAULTS));
-
-        // The builder queries need YOOtheme; without the parent theme they stay inert.
-        if (function_exists('YOOtheme\\app')) {
-            require_once __DIR__ . '/yootheme.php';
-        }
     }
 }

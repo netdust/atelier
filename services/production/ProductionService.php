@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Support\Schema;
-use NTDST_Service_Meta;
 use WP_Post;
 
 defined('ABSPATH') || exit;
 
-final class ProductionService implements NTDST_Service_Meta
+final class ProductionService
 {
     private const DEFAULTS = [
         'slug'    => 'productions',
@@ -21,14 +20,6 @@ final class ProductionService implements NTDST_Service_Meta
     public function __construct(private readonly ProductionRepository $repository)
     {
         $this->init();
-    }
-
-    public static function metadata(): array
-    {
-        return [
-            'description' => 'Productions: the creative work a company tours, with credits, media and press.',
-            'priority'    => 10,
-        ];
     }
 
     /**
@@ -66,10 +57,5 @@ final class ProductionService implements NTDST_Service_Meta
         add_filter('ntdst/baseline/schema/post_type/production', [$this, 'schema'], 10, 2);
 
         ProductionModel::register(apply_filters('ntdst/service/production/config', self::DEFAULTS));
-
-        // The builder queries need YOOtheme; without the parent theme they stay inert.
-        if (function_exists('YOOtheme\\app')) {
-            require_once __DIR__ . '/yootheme.php';
-        }
     }
 }

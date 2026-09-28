@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Atelier\Organisation;
 
-use NTDST_Service_Meta;
 
 defined('ABSPATH') || exit;
 
-final class OrganisationService implements NTDST_Service_Meta
+final class OrganisationService
 {
     // No archive: a site's Partners page is a builder page on this slug.
     private const DEFAULTS = [
@@ -20,14 +19,6 @@ final class OrganisationService implements NTDST_Service_Meta
     public function __construct()
     {
         $this->init();
-    }
-
-    public static function metadata(): array
-    {
-        return [
-            'description' => 'Organisations: venues, co-producers, funders and presenters in one record.',
-            'priority'    => 10,
-        ];
     }
 
     private function init(): void

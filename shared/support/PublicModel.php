@@ -39,16 +39,37 @@ final class PublicModel
         ], $args));
     }
 
-    /** A taxonomy the builder can filter on, with no public archive of its own. */
+    /**
+     * A taxonomy the builder can filter on, with no public archive of its own.
+     * Given terms, the vocabulary is fixed: seeded, shown as checkboxes, and
+     * editors may assign a term but never invent one — a stage nobody's list
+     * knows would drop a production out of every list.
+     *
+     * @param array<string, string> $terms slug => name
+     */
     public static function taxonomy(string $plural, string $singular, array $terms = []): array
     {
-        return [
+        $args = [
             'labels'             => ['name' => $plural, 'singular_name' => $singular],
             'publicly_queryable' => false,
             'rewrite'            => false,
             'show_in_rest'       => false,
             'show_admin_column'  => true,
             'terms'              => $terms,
+        ];
+
+        if ($terms === []) {
+            return $args;
+        }
+
+        return $args + [
+            'hierarchical' => true,
+            'capabilities' => [
+                'manage_terms' => 'do_not_allow',
+                'edit_terms'   => 'do_not_allow',
+                'delete_terms' => 'do_not_allow',
+                'assign_terms' => 'edit_posts',
+            ],
         ];
     }
 }
