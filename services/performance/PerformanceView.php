@@ -12,9 +12,8 @@ use WP_Post;
 defined('ABSPATH') || exit;
 
 /**
- * A performance's public shape — every public output reads a performance
- * through here, never `->fields` wholesale, so a private field Backstage
- * later adds to this same post (D8) has no door out through this one.
+ * A performance's public shape. Every public output reads through here, never `->fields` wholesale,
+ * so the private fields backstage-schedule adds to this post (D8) have no way out.
  */
 final class PerformanceView
 {
@@ -24,9 +23,8 @@ final class PerformanceView
     ];
 
     /**
-     * @return array<string, mixed>|null null when the production or the
-     *         venue isn't published — the public read is publish-only,
-     *         twice over.
+     * @return array<string, mixed>|null null when the production or venue isn't published, or the
+     *         stored date/time doesn't parse — one bad row must not take the calendar down.
      */
     public static function from(WP_Post $performance): ?array
     {
@@ -46,11 +44,16 @@ final class PerformanceView
         $time = (string) ($fields['time'] ?? '');
         $allDay = $time === '';
 
+        $start = self::start($date, $time);
+        if ($start === null) {
+            return null;
+        }
+
         return [
             'id'               => (int) $performance->ID,
             'date'             => $date,
             'time'             => $time,
-            'start'            => new DateTimeImmutable(trim($date . ' ' . ($allDay ? '00:00' : $time)), wp_timezone()),
+            'start'            => $start,
             'all_day'          => $allDay,
             'production'       => $production,
             'venue'            => $venue,
@@ -61,10 +64,17 @@ final class PerformanceView
         ];
     }
 
+    /** Round-tripped, so an overflowing `2026-02-31` or `25:00` is refused too. */
+    private static function start(string $date, string $time): ?DateTimeImmutable
+    {
+        [$format, $value] = $time === '' ? ['Y-m-d', $date] : ['Y-m-d H:i', $date . ' ' . $time];
+        $start = DateTimeImmutable::createFromFormat('!' . $format, $value, wp_timezone());
+
+        return $start !== false && $start->format($format) === $value ? $start : null;
+    }
+
     /**
-     * A relation is always stored as an int list, `multiple` or not
-     * (FieldTypes.php:442-444) — production and venue are single picks that
-     * still arrive as a one-item array.
+     * A relation is stored as an int list even for a single pick (FieldTypes.php:442-444).
      *
      * @param array<string, mixed> $fields
      */
