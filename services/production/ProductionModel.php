@@ -7,6 +7,7 @@ namespace Atelier\Production;
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
 use Atelier\Support\PublicModel;
+use Atelier\Support\Vocabulary;
 
 defined('ABSPATH') || exit;
 
@@ -49,7 +50,7 @@ final class ProductionModel
                 'required' => true,
                 'validate' => static fn($year) => ((int) $year >= 1900 && (int) $year <= 2100) ?: 'premiere_year must be between 1900 and 2100',
             ],
-            'kind'          => self::oneOf(self::KINDS),
+            'kind'          => Vocabulary::oneOf(self::KINDS),
             'min_age'       => ['type' => 'int'],
             'runtime'       => ['type' => 'int', 'description' => 'Minutes'],
             'trailer_url'   => ['type' => 'url'],
@@ -83,17 +84,5 @@ final class ProductionModel
     private static function people(string $role): array
     {
         return ['type' => 'relation', 'post_type' => PersonModel::POST_TYPE, 'multiple' => true, 'label' => $role];
-    }
-
-    // `select` sanitizes but does not validate: its options are a UI list,
-    // and a value outside them would drop a production from every list.
-    private static function oneOf(array $values): array
-    {
-        return [
-            'type'     => 'select',
-            'required' => true,
-            'options'  => array_combine($values, $values),
-            'validate' => static fn($value) => in_array($value, $values, true) ?: sprintf('must be one of: %s', implode(', ', $values)),
-        ];
     }
 }
