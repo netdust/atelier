@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Performance;
 
+use Atelier\Production\ProductionModel;
 use DateTimeImmutable;
 use DateTimeZone;
 use WP_Post;
@@ -15,12 +16,11 @@ final class PerformanceService
     private const DEFAULTS = [
         'slug'     => 'performances',
         'archive'  => false,
-        // The URL segment the .ics feed (Task 4) and feedUrl() read.
         'calendar' => 'calendar',
         'labels'   => ['name' => 'Performances', 'singular_name' => 'Performance'],
     ];
 
-    /** The calendar page's own JSON-LD window (Task 5). */
+    /** The calendar page's JSON-LD cap. */
     private const SCHEMA_LIMIT = 50;
 
     /** PerformanceModel::TICKET_STATUSES, minus `announced` (no offer at all). */
@@ -34,7 +34,7 @@ final class PerformanceService
     /** @var array<string, mixed> */
     private array $config;
 
-    public function __construct()
+    public function __construct(private readonly PerformanceRepository $repository)
     {
         $this->init();
     }
@@ -48,10 +48,6 @@ final class PerformanceService
         \NTDST_Template_Loader::addPath(__DIR__ . '/templates');
         add_shortcode('atelier_calendar_filters', [$this, 'renderFilters']);
 
-        // Pages::path() must run while WordPress is still building its rule
-        // set (its own docblock); `init` is also where every other route on
-        // the fleet registers, so this one does the same rather than riding
-        // in early on the service's own construction.
         add_action('init', function (): void {
             $config = $this->config;
 
@@ -76,9 +72,7 @@ final class PerformanceService
     }
 
     /**
-     * `add_query_arg` over the calendar's own `.ics` URL (F2) — the form
-     * (below) and Task 4's feed link both build off this, so the segment is
-     * named in exactly one place.
+     * The one place the `.ics` URL is built (F2).
      *
      * @param array<string, string> $params
      */
@@ -86,16 +80,12 @@ final class PerformanceService
     {
         $calendar = (string) ($this->config['calendar'] ?? self::DEFAULTS['calendar']);
 
-        return add_query_arg($params, ntdst_pages()->url('/' . $calendar . '.ics/'));
+        return add_query_arg(array_map('rawurlencode', $params), ntdst_pages()->url('/' . $calendar . '.ics/'));
     }
 
     /**
-     * The `[atelier_calendar_filters]` shortcode: a GET form to the current
-     * page, one `<select>` per allow-listed filter, the past/upcoming
-     * toggle, the empty message and the feed link. `$_GET` is read exactly
-     * once, through `CalendarFilter::fromQuery()` (Threat model M1); every
-     * attribute is editor-supplied free text, sanitized by `shortcode_atts()`
-     * against these defaults and escaped in `filters.php` (M4).
+     * `[atelier_calendar_filters]`. `$_GET` is read once, through `CalendarFilter::fromQuery()` (M1);
+     * the attributes are editor text, escaped in the template (M4).
      *
      * @param array<string, mixed>|string $atts
      */
@@ -114,7 +104,6 @@ final class PerformanceService
             'feed'           => 'Subscribe to your calendar',
         ], is_array($atts) ? $atts : [], 'atelier_calendar_filters');
 
-        $repository = ntdst_get(PerformanceRepository::class);
         $filter = CalendarFilter::fromQuery($_GET);
         $selected = $filter->toQuery();
 
@@ -122,6 +111,7 @@ final class PerformanceService
         unset($feedParams['month'], $feedParams['past']);
 
         $toggled = $selected;
+        unset($toggled['month']);
         if ($filter->past) {
             unset($toggled['past']);
         } else {
@@ -130,27 +120,22 @@ final class PerformanceService
 
         $permalink = (string) get_permalink();
 
-        return ntdst_response()->html('filters', [
+        return ntdst_response()->html('calendar-filters', [
             'atts'         => $atts,
             'filter'       => $filter,
             'selected'     => $selected,
-            'options'      => $repository->filterOptions($filter),
+            'options'      => $this->repository->filterOptions($filter),
             'action'       => $permalink,
             'feed_url'     => $this->feedUrl($feedParams),
-            'toggle_url'   => add_query_arg($toggled, $permalink),
+            'toggle_url'   => add_query_arg(array_map('rawurlencode', $toggled), $permalink),
             'toggle_label' => $filter->past ? $atts['upcoming'] : $atts['past'],
-            'is_empty'     => $repository->calendar($filter) === [],
+            'is_empty'     => $this->repository->calendar($filter) === [],
         ]);
     }
 
     /**
-     * `TheaterEvent` JSON-LD on baseline's `ntdst/baseline/schema/custom`
-     * filter: one entry per public-audience performance (R-c) — the calendar
-     * page's own current filter (capped at `SCHEMA_LIMIT`), a production
-     * single's own upcoming performances, or nothing anywhere else. Every
-     * output still reads a performance through `PerformanceView` alone
-     * (`calendar()`), so a private field Backstage later adds has no door
-     * out through here either.
+     * `TheaterEvent` JSON-LD, public audience only (R-c): the calendar page's current filter, or a
+     * production's upcoming dates.
      *
      * @param array<int, mixed> $schemas
      *
@@ -160,7 +145,7 @@ final class PerformanceService
     {
         if (is_page($this->config['calendar'])) {
             $views = array_slice($this->publicViews(CalendarFilter::fromRequest()), 0, self::SCHEMA_LIMIT);
-        } elseif ($post instanceof WP_Post && is_singular('production')) {
+        } elseif ($post instanceof WP_Post && is_singular(ProductionModel::POST_TYPE)) {
             $views = $this->publicViews(CalendarFilter::forProduction($post->ID));
         } else {
             return $schemas;
@@ -174,16 +159,13 @@ final class PerformanceService
     }
 
     /**
-     * `calendar()`'s own reads, narrowed to `audience === 'public'` (R-c) —
-     * the JSON-LD is a machine-readable signal, never the visitor's own
-     * filter choice (a `?audience=school` request must not surface a school
-     * date here either).
+     * Public audience whatever the visitor filtered on: `?audience=school` must not reach the JSON-LD.
      *
      * @return list<array<string, mixed>>
      */
     private function publicViews(CalendarFilter $filter): array
     {
-        $views = ntdst_get(PerformanceRepository::class)->calendar($filter);
+        $views = $this->repository->calendar($filter);
 
         return array_values(array_filter(
             $views,
@@ -192,10 +174,6 @@ final class PerformanceService
     }
 
     /**
-     * One `PerformanceView::from()` shape as a `TheaterEvent`. Small on
-     * purpose (Task 5 brief) — a per-field builder would just move the same
-     * lines one level down.
-     *
      * @param array<string, mixed> $view
      *
      * @return array<string, mixed>
@@ -212,9 +190,7 @@ final class PerformanceService
         $start = $view['start'];
         $runtime = self::runtimeMinutes($production);
 
-        // empty(), matching ProductionService::schema()'s own convention for
-        // an optional numeric field: an unset float field reads back as 0,
-        // never a real coordinate.
+        // An unset float field reads back as 0, never a real coordinate.
         $lat = $venue->fields['lat'] ?? null;
         $lng = $venue->fields['lng'] ?? null;
         $hasGeo = !empty($lat) && !empty($lng);
@@ -250,10 +226,7 @@ final class PerformanceService
             'url' => (string) get_permalink($production),
         ];
 
-        // Keyed off AVAILABILITY, not "!== 'announced'": a status the map
-        // doesn't know (unset, or anything but the five the model allows)
-        // means no known sale state, same as an explicit 'announced' would —
-        // never an offer with an empty availability.
+        // An unknown or unset status is no sale state, like 'announced' — never an empty availability.
         $ticketUrl = (string) $view['ticket_url'];
         $availability = self::AVAILABILITY[$view['ticket_status']] ?? null;
         if ($ticketUrl !== '' && $availability !== null) {
@@ -268,39 +241,31 @@ final class PerformanceService
     }
 
     /**
-     * The whole calendar as an `.ics` feed, or one production's with
-     * `?show=<slug>`. `month` and `past` are dropped before the query ever
-     * reaches `CalendarFilter::fromQuery()` (M1) — the feed is one window,
-     * never a page of it — so a forged `?past=1` cannot narrow what a
-     * subscriber's calendar app already cached.
-     *
-     * `false` (→ 404, Threat model M3) when the raw query named a `show` that
-     * didn't resolve: an empty string or a non-scalar (`show[]=`) is treated
-     * as no `show` at all, exactly like `CalendarFilter::fromQuery()` treats
-     * it — only a slug that was GIVEN and did not resolve is a refusal, never
-     * "no slug given".
+     * The calendar as one `.ics` window: `month`/`past` are dropped, so a forged `?past=1` cannot
+     * narrow what a subscriber already cached. `false` (404, M3) when a filter was given as a
+     * non-empty scalar but the allow-list dropped it — the feed refuses rather than widens.
      *
      * @param array<string, mixed> $query
      */
     public function feed(array $query): string|false
     {
-        $show = $query['show'] ?? null;
-        $showGiven = is_scalar($show) && (string) wp_unslash($show) !== '';
-
         unset($query['month'], $query['past']);
         $filter = CalendarFilter::fromQuery($query);
 
-        if ($showGiven && $filter->production === null) {
-            return false;
+        $kept = ['show' => $filter->production, 'audience' => $filter->audience, 'country' => $filter->country];
+        foreach ($kept as $param => $value) {
+            $given = $query[$param] ?? null;
+            if (is_scalar($given) && (string) wp_unslash($given) !== '' && $value === null) {
+                return false;
+            }
         }
 
-        $repository = ntdst_get(PerformanceRepository::class);
         $today = new DateTimeImmutable((string) current_time('Y-m-d'), wp_timezone());
         $from = $today->modify('-365 days')->format('Y-m-d');
 
         $events = array_map(
             [$this, 'toEvent'],
-            $repository->calendar($filter, $from),
+            $this->repository->calendar($filter, $from),
         );
 
         $name = (string) ($this->config['labels']['name'] ?? self::DEFAULTS['labels']['name']);
@@ -309,10 +274,7 @@ final class PerformanceService
     }
 
     /**
-     * One `PerformanceView::from()` shape (id/start/all_day/production/venue/
-     * ticket_status — `PerformanceView::KEYS`) as `Ics::calendar()`'s event
-     * shape. `post_modified_gmt` is not one of `PerformanceView::KEYS` (M6),
-     * so the performance is re-read here for it alone.
+     * `post_modified_gmt` is not a view key (M6), so the performance is re-read for DTSTAMP alone.
      *
      * @param array<string, mixed> $view
      *
@@ -325,7 +287,7 @@ final class PerformanceService
         /** @var WP_Post $venue */
         $venue = $view['venue'];
 
-        $performance = ntdst_get(PerformanceRepository::class)->find((int) $view['id']);
+        $performance = $this->repository->find((int) $view['id']);
         $stamp = is_wp_error($performance)
             ? new DateTimeImmutable('now', new DateTimeZone('UTC'))
             : new DateTimeImmutable($performance->post_modified_gmt, new DateTimeZone('UTC'));
@@ -355,7 +317,6 @@ final class PerformanceService
         return (string) wp_parse_url(home_url(), PHP_URL_HOST);
     }
 
-    /** The production's own runtime, shared by the feed (Task 4) and the schema (Task 5). */
     private static function runtimeMinutes(WP_Post $production): ?int
     {
         $minutes = (int) ($production->fields['runtime'] ?? 0);
@@ -364,9 +325,6 @@ final class PerformanceService
     }
 
     /**
-     * `ticket_status === 'cancelled'`, shared by the feed's own STATUS and
-     * the schema's `eventStatus` (Task 4 / Task 5).
-     *
      * @param array<string, mixed> $view
      */
     private static function cancelled(array $view): bool

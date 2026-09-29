@@ -1,11 +1,7 @@
 <?php
 
 /**
- * `[atelier_calendar_filters]` — a GET form to the current page. Every value
- * it echoes already passed `CalendarFilter::fromQuery()`'s allow-list
- * (Threat model M1); this template's own job is M4 — escape every output
- * regardless, since a value's origin is not a reason to trust it at render
- * time.
+ * `[atelier_calendar_filters]`. Values already passed the allow-list (M1); every output is escaped anyway (M4).
  *
  * @var array<string, string> $args['atts']
  * @var array<string, string> $args['selected']

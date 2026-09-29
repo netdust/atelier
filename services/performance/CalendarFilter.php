@@ -9,29 +9,22 @@ use Atelier\Production\ProductionRepository;
 defined('ABSPATH') || exit;
 
 /**
- * What narrows a calendar read — and the only code that interprets `$_GET`
- * (Threat model M1). Every value is scalar-checked, `wp_unslash()`ed once and
- * sanitized, then kept only when it passes its own allow-list; anything else
- * becomes null (or, for `past`, false) rather than reaching a query or an
- * echo.
+ * What narrows a calendar read, and the only code that interprets `$_GET` (M1): every value is
+ * scalar-checked, unslashed once, sanitized, then kept only when it passes its allow-list.
  */
 final class CalendarFilter
 {
-    /** The only query-string keys this filter ever reads. */
+    /** The only query-string keys this filter reads. */
     public const PARAMS = ['show', 'audience', 'country', 'month', 'past'];
 
-    private const AUDIENCES = ['public', 'school'];
-
     /**
-     * The filter's own allow-list, read-only — the form's audience options
-     * are exactly these values (never `closed`, which this filter never
-     * accepts either), so the picker and `fromQuery()` cannot drift apart.
+     * The model's audiences minus `closed`, which is never listed publicly. The form offers exactly these.
      *
      * @return list<string>
      */
     public static function audiences(): array
     {
-        return self::AUDIENCES;
+        return array_values(array_diff(PerformanceModel::AUDIENCES, ['closed']));
     }
 
     private function __construct(
@@ -58,7 +51,6 @@ final class CalendarFilter
         return new self($id, null, null, null, false);
     }
 
-    /** The filter behind every page-rendered view of the calendar — the page's own query string, always. */
     public static function fromRequest(): self
     {
         return self::fromQuery($_GET);
@@ -74,7 +66,7 @@ final class CalendarFilter
 
         $audience = self::scalar($query, 'audience');
         $audience = $audience !== null ? sanitize_key($audience) : null;
-        $audience = in_array($audience, self::AUDIENCES, true) ? $audience : null;
+        $audience = in_array($audience, self::audiences(), true) ? $audience : null;
 
         $country = self::scalar($query, 'country');
         $country = $country !== null ? sanitize_text_field($country) : null;
@@ -90,9 +82,7 @@ final class CalendarFilter
     }
 
     /**
-     * The kept values, keyed the way `fromQuery()` reads them back — the
-     * form's selected state and the feed link both build off this, so
-     * nothing unlisted ever finds its way back into a URL.
+     * The kept values, keyed as `fromQuery()` reads them, so nothing unlisted reaches a URL.
      *
      * @return array<string, string>
      */
@@ -126,7 +116,6 @@ final class CalendarFilter
         return $query;
     }
 
-    /** A scalar value, `wp_unslash()`ed once — an array (or anything else non-scalar) is dropped. */
     private static function scalar(array $query, string $key): ?string
     {
         $value = $query[$key] ?? null;
