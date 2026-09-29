@@ -79,7 +79,7 @@ final class PerformanceService
         return add_query_arg(array_map('rawurlencode', $params), ntdst_pages()->url($this->calendarPaths('.ics/')));
     }
 
-    public function feedFilename(): string
+    private function feedFilename(): string
     {
         return $this->calendarWord() . '.ics';
     }
@@ -87,7 +87,7 @@ final class PerformanceService
     /**
      * `calendar` is one word, or one per language; the first entry answers a language it lacks.
      */
-    private function calendarWord(?string $language = null): string
+    private function calendarWord(): string
     {
         $calendar = $this->config['calendar'] ?? self::DEFAULTS['calendar'];
 
@@ -95,7 +95,7 @@ final class PerformanceService
             return (string) $calendar;
         }
 
-        return (string) ($calendar[$language ?? ntdst_pages()->language()] ?? reset($calendar));
+        return (string) ($calendar[ntdst_pages()->language()] ?? reset($calendar));
     }
 
     /**

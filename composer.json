@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": ">=8.2",
-        "netdust/ntdst-core": "^5.2",
+        "netdust/ntdst-core": "^5.4",
         "netdust/ntdst-baseline": "^2.6"
     },
     "repositories": [
