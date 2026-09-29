@@ -9,8 +9,9 @@ use WP_Post;
 defined('ABSPATH') || exit;
 
 /**
- * The one escape-hatch query the built-in `customPerformance` list cannot
- * express: an upcoming/past split with a from-date override
+ * The escape-hatch query the built-in `customPerformance` list cannot
+ * express (an upcoming/past split with a from-date override), plus the two
+ * fields merged onto YOOtheme's own `Production` type
  * (ntdst-yootheme's yootheme.md § escape hatch). Loaded always — the
  * integration tier (twentytwentyfive, no YOOtheme) exercises it directly;
  * only yootheme.php touches the parent theme.
