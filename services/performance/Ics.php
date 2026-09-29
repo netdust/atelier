@@ -97,16 +97,22 @@ final class Ics
     }
 
     /**
-     * Escapes a value for a content line (RFC 5545 §3.3.11). `\` first —
-     * escaping it after `;`/`,` would double-escape the backslashes those
-     * steps just inserted — then `;` and `,`, then every CRLF, CR and LF
-     * collapses to a literal `\n`. That last step is the one that matters
-     * for Threat 3: a stored value can carry a real line break, but never an
-     * actual CR or LF byte, so it can never start a new content line, let
-     * alone `END:VEVENT` / `BEGIN:VEVENT`.
+     * Escapes a value for a content line (RFC 5545 §3.3.11). `mb_scrub()`
+     * first — the calendar's own charset is UTF-8, and a value that reached
+     * storage some other way than this writer (a direct SQL import; Threat
+     * 3's own example) can carry bytes that are not valid UTF-8 at all,
+     * which both breaks the output for a real parser and is what used to
+     * send fold()'s cut point past 0 (see fold()). Then `\` — escaping it
+     * after `;`/`,` would double-escape the backslashes those steps just
+     * inserted — then `;` and `,`, then every CRLF, CR and LF collapses to a
+     * literal `\n`. That last step is the one that matters for Threat 3: a
+     * stored value can carry a real line break, but never an actual CR or LF
+     * byte, so it can never start a new content line, let alone
+     * `END:VEVENT` / `BEGIN:VEVENT`.
      */
     public static function text(string $value): string
     {
+        $value = mb_scrub($value, 'UTF-8');
         $value = str_replace('\\', '\\\\', $value);
         $value = str_replace([';', ','], ['\;', '\,'], $value);
 
@@ -117,8 +123,13 @@ final class Ics
      * Folds one content line at 75 octets (RFC 5545 §3.1): every physical
      * line but the last ends in CRLF, and every line after the first opens
      * with one space, itself counted inside that line's 75 octets. The cut
-     * point only ever backs off a UTF-8 continuation byte (10xxxxxx), so a
-     * multibyte character is always kept whole on one physical line.
+     * point backs off a UTF-8 continuation byte (10xxxxxx) so a multibyte
+     * character is always kept whole on one physical line — but a run of
+     * ≥75 continuation bytes with no lead byte in front of them (invalid
+     * UTF-8; text() scrubs this before it reaches here, but fold() is
+     * public on its own) would back the cut off all the way to 0, which
+     * cuts NOTHING and never shrinks $rest. Every call must make progress,
+     * so a back-off that reaches 0 falls back to the full width instead.
      */
     public static function fold(string $line): string
     {
@@ -127,10 +138,15 @@ final class Ics
         $first = true;
 
         while (strlen($rest) > ($first ? 75 : 74)) {
-            $cut = $first ? 75 : 74;
+            $limit = $first ? 75 : 74;
+            $cut = $limit;
 
             while ($cut > 0 && (ord($rest[$cut]) & 0xC0) === 0x80) {
                 $cut--;
+            }
+
+            if ($cut === 0) {
+                $cut = $limit;
             }
 
             $folded .= ($first ? '' : ' ') . substr($rest, 0, $cut) . self::CRLF;

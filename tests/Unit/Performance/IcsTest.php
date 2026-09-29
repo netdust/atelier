@@ -134,6 +134,40 @@ final class IcsTest extends TestCase
     }
 
     /**
+     * fold()'s UTF-8 back-off must never reach a point where it cuts
+     * nothing: ≥75 consecutive continuation bytes (0x80–0xBF, e.g. from a
+     * direct SQL import that never went through text()'s own scrub) used to
+     * back the cut point off all the way to 0, emit an empty continuation
+     * line, and loop on a $rest that never shrank. Run under a `timeout`
+     * from the shell (see the task report) so a regression here kills the
+     * test runner, not this whole session.
+     */
+    public function test_fold_terminates_on_long_invalid_utf8_run(): void
+    {
+        $line = 'SUMMARY:' . str_repeat("\x80", 80);
+
+        $folded = Ics::fold($line);
+
+        foreach (explode("\r\n", $folded) as $physical) {
+            $this->assertLessThanOrEqual(75, strlen($physical));
+        }
+    }
+
+    /**
+     * text() must hand fold() (and every consumer) valid UTF-8 even when
+     * the stored value isn't — the calendar's own charset is UTF-8, and an
+     * invalid byte sequence loose in the output would corrupt every
+     * property after it for a real parser, not just risk the fold() hang
+     * above.
+     */
+    public function test_text_scrubs_invalid_utf8(): void
+    {
+        $scrubbed = Ics::text("before\x80\x80\x80after");
+
+        $this->assertTrue(mb_check_encoding($scrubbed, 'UTF-8'));
+    }
+
+    /**
      * RFC 5545 §3.1 unfolding: a continuation physical line opens with a
      * single space, which is stripped and the line joined onto the previous
      * one.
