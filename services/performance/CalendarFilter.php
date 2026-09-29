@@ -46,17 +46,8 @@ final class CalendarFilter
         return new self($id, null, null, null, false);
     }
 
-    /**
-     * The filter that drives every page-rendered view of the calendar — the
-     * builder's own list (`resolve_calendar()`) and the filter form both read
-     * the same state, so they never disagree. `$args` (the YOOtheme query's
-     * own arguments) carried the only signal before this task; now the query
-     * string is that signal everywhere, so `$args` is unused and kept only
-     * for the call site's existing signature.
-     *
-     * @param array<string, mixed> $args Unused — kept for call-site compatibility.
-     */
-    public static function fromRequest(array $args = []): self
+    /** The filter behind every page-rendered view of the calendar — the page's own query string, always. */
+    public static function fromRequest(): self
     {
         return self::fromQuery($_GET);
     }

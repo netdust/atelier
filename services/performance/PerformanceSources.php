@@ -47,16 +47,16 @@ final class PerformanceSources
 }
 
 /**
- * Upcoming or past performances, as `CalendarFilter::fromRequest()` reads the
- * query's own `past` argument. Returns `WP_Post`s — the shape every builder
- * list wants — mapped from `PerformanceRepository::calendar()`'s views.
+ * Upcoming or past performances, filtered by the page's own query string
+ * (`CalendarFilter::fromRequest()`) — builder arguments are not a filter
+ * source. Returns `WP_Post`s — the shape every builder list wants — mapped
+ * from `PerformanceRepository::calendar()`'s views.
  *
- * @param array<string, mixed> $args
  * @return list<WP_Post>
  */
-function resolve_calendar(mixed $root, array $args = []): array
+function resolve_calendar(mixed $root): array
 {
-    $filter = CalendarFilter::fromRequest($args);
+    $filter = CalendarFilter::fromRequest();
     $views = ntdst_get(PerformanceRepository::class)->calendar($filter);
 
     return array_values(array_filter(array_map(

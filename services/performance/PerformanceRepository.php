@@ -168,13 +168,25 @@ final class PerformanceRepository
     }
 
     /**
+     * `$country` already went through `CalendarFilter::fromQuery()`'s
+     * `sanitize_text_field()` (which trims), matching what `countries()`
+     * offers. An exact meta-query match would compare that trimmed value
+     * against the RAW stored one, so this reads every published venue and
+     * trims on read instead — the same normalisation on both sides.
+     *
      * @return list<int>
      */
     private static function venueIdsForCountry(string $country): array
     {
-        $rows = ntdst_data()->get(OrganisationModel::POST_TYPE)->where('country', $country)->limit(-1)->get();
+        $ids = [];
 
-        return array_values(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows));
+        foreach (ntdst_data()->get(OrganisationModel::POST_TYPE)->withMeta()->limit(-1)->get() as $row) {
+            if (trim((string) ($row['meta']['country'] ?? '')) === $country) {
+                $ids[] = (int) ($row['id'] ?? 0);
+            }
+        }
+
+        return $ids;
     }
 
     /**
