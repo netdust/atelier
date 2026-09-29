@@ -129,7 +129,7 @@ final class PerformanceRepository
      * not whatever else they already picked, so picking one filter never
      * collapses the others' choices.
      *
-     * @return array{productions: array<string, string>, countries: list<string>, months: list<string>}
+     * @return array{productions: array<string, string>, countries: list<string>, months: list<string>, audiences: array<string, string>}
      */
     public function filterOptions(CalendarFilter $filter): array
     {
@@ -149,7 +149,36 @@ final class PerformanceRepository
             'productions' => $productions,
             'countries'   => $this->countries(),
             'months'      => $months,
+            'audiences'   => $this->audienceOptions(),
         ];
+    }
+
+    /**
+     * The form's audience `<option>` text, read from the model's OWN
+     * `audience` field declaration — its `options` are already post-filter
+     * (`ntdst_data()->register()` applies `ntdst/performance/fields` before
+     * building the model), so a site's relabelling reaches the form the same
+     * way it reaches the builder. Scoped to `CalendarFilter::audiences()` —
+     * the filter's allow-list, not the model's full vocabulary (`closed`
+     * is a valid stored value but was never a filterable one).
+     *
+     * A value the schema does not label falls back to itself, same as
+     * baseline's `FieldTypeBridge::selectLabel()` — the form still shows
+     * SOMETHING for it rather than an empty option.
+     *
+     * @return array<string, string>
+     */
+    public function audienceOptions(): array
+    {
+        $schema = ntdst_data()->get(PerformanceModel::POST_TYPE)->getSchema();
+        $options = is_array($schema['audience']['options'] ?? null) ? $schema['audience']['options'] : [];
+
+        $labels = [];
+        foreach (CalendarFilter::audiences() as $value) {
+            $labels[$value] = is_string($options[$value] ?? null) ? $options[$value] : $value;
+        }
+
+        return $labels;
     }
 
     /**

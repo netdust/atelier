@@ -9,7 +9,7 @@
  *
  * @var array<string, string> $args['atts']
  * @var array<string, string> $args['selected']
- * @var array{productions: array<string, string>, countries: list<string>, months: list<string>} $args['options']
+ * @var array{productions: array<string, string>, countries: list<string>, months: list<string>, audiences: array<string, string>} $args['options']
  * @var string $args['action']
  * @var string $args['feed_url']
  * @var string $args['toggle_url']
@@ -44,9 +44,9 @@ $options = $args['options'];
         <label for="atelier-calendar-filter-audience"><?php echo esc_html($atts['audience_label']); ?></label>
         <select id="atelier-calendar-filter-audience" name="audience">
             <option value=""><?php echo esc_html($atts['all']); ?></option>
-            <?php foreach (['public', 'school'] as $value) : ?>
+            <?php foreach ($options['audiences'] as $value => $label) : ?>
                 <option value="<?php echo esc_attr($value); ?>"<?php selected($value, $selected['audience'] ?? ''); ?>>
-                    <?php echo esc_html($value); ?>
+                    <?php echo esc_html($label); ?>
                 </option>
             <?php endforeach; ?>
         </select>

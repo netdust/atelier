@@ -22,6 +22,18 @@ final class CalendarFilter
 
     private const AUDIENCES = ['public', 'school'];
 
+    /**
+     * The filter's own allow-list, read-only — the form's audience options
+     * are exactly these values (never `closed`, which this filter never
+     * accepts either), so the picker and `fromQuery()` cannot drift apart.
+     *
+     * @return list<string>
+     */
+    public static function audiences(): array
+    {
+        return self::AUDIENCES;
+    }
+
     private function __construct(
         public readonly ?int $production,
         public readonly ?string $audience,
