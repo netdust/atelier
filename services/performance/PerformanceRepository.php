@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Performance;
 
-use Atelier\Models\OrganisationModel;
+use Atelier\Models\OrganisationRepository;
+use Atelier\Production\ProductionRepository;
 use DateTimeImmutable;
 use WP_Error;
 use WP_Post;
@@ -14,6 +15,17 @@ defined('ABSPATH') || exit;
 /** The one place `performance` data is read or written. */
 final class PerformanceRepository
 {
+    /** @var array<string, mixed> One page render reads the same calendar several times. */
+    private array $memo = [];
+
+    private string $memoStamp = '';
+
+    public function __construct(
+        private readonly OrganisationRepository $organisations,
+        private readonly ProductionRepository $productions,
+    ) {
+    }
+
     public function find(int $id): WP_Post|WP_Error
     {
         return ntdst_data()->get(PerformanceModel::POST_TYPE)->find($id);
@@ -24,22 +36,83 @@ final class PerformanceRepository
         return ntdst_data()->get(PerformanceModel::POST_TYPE)->create($data);
     }
 
-    public function update(int $id, array $data): WP_Post|WP_Error
-    {
-        return ntdst_data()->get(PerformanceModel::POST_TYPE)->update($id, $data);
-    }
-
     /**
-     * Upcoming or past performances as public views. Today is
-     * `current_time('Y-m-d')` — the site's own timezone. `$from` overrides
-     * the lower bound (the feed, Task 2); every call sets its limit
-     * explicitly (core's own default is 10 — Data.php:1988). `month`
-     * overrides upcoming/past outright — that calendar month, ascending,
-     * regardless of `$filter->past`.
+     * Upcoming or past performances as public views, "today" in the site's timezone. `$from`
+     * overrides the lower bound (the feed); `month` overrides the tense outright.
      *
      * @return list<array<string, mixed>>
      */
     public function calendar(CalendarFilter $filter, ?string $from = null): array
+    {
+        return $this->memo('calendar:' . serialize([$filter, $from]), fn(): array => $this->readCalendar($filter, $from));
+    }
+
+    /**
+     * Venue countries across the upcoming view and the past window, so a draft's venue never
+     * offers a country nothing published uses (Threat 1). The `country` allow-list and its options.
+     *
+     * @return list<string>
+     */
+    public function countries(): array
+    {
+        return $this->memo('countries', function (): array {
+            $countries = [];
+
+            foreach ([...$this->calendar(CalendarFilter::upcoming()), ...$this->calendar(CalendarFilter::past())] as $view) {
+                $country = trim((string) ($view['venue']->fields['country'] ?? ''));
+                if ($country !== '') {
+                    $countries[$country] = true;
+                }
+            }
+
+            $countries = array_keys($countries);
+            sort($countries);
+
+            return $countries;
+        });
+    }
+
+    /**
+     * Productions and months come from the current tense only, so one pick never collapses the
+     * other choices — plus the selected ones, so a pick from the other tense still shows as selected.
+     *
+     * @return array{productions: array<string, string>, countries: list<string>, months: list<string>, audiences: array<string, string>}
+     */
+    public function filterOptions(CalendarFilter $filter): array
+    {
+        $tense = $filter->past ? CalendarFilter::past() : CalendarFilter::upcoming();
+
+        $productions = [];
+        $months = [];
+        foreach ($this->calendar($tense) as $view) {
+            $productions[(string) $view['production']->post_name] = (string) $view['production']->post_title;
+            $months[substr((string) $view['date'], 0, 7)] = true;
+        }
+
+        if ($filter->production !== null) {
+            $selected = $this->productions->find($filter->production);
+            if (!is_wp_error($selected)) {
+                $productions[(string) $selected->post_name] ??= (string) $selected->post_title;
+            }
+        }
+
+        if ($filter->month !== null) {
+            $months[$filter->month] = true;
+        }
+
+        $months = array_keys($months);
+        sort($months);
+
+        return [
+            'productions' => $productions,
+            'countries'   => $this->countries(),
+            'months'      => $months,
+            'audiences'   => $this->audienceOptions(),
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function readCalendar(CalendarFilter $filter, ?string $from): array
     {
         $today = (string) current_time('Y-m-d');
         $query = ntdst_data()->get(PerformanceModel::POST_TYPE);
@@ -67,7 +140,7 @@ final class PerformanceRepository
         }
 
         if ($filter->country !== null) {
-            $venueIds = self::venueIdsForCountry($filter->country);
+            $venueIds = $this->organisations->idsByCountry($filter->country);
             if ($venueIds === []) {
                 return [];
             }
@@ -98,77 +171,12 @@ final class PerformanceRepository
     }
 
     /**
-     * The distinct venue `country` values across the upcoming view and the
-     * past window — both of `calendar()`'s own publish checks apply, so a
-     * draft's venue never surfaces a country nothing published uses
-     * (Threat 1). Used both as the `country` allow-list and to populate the
-     * form's options.
-     *
-     * @return list<string>
-     */
-    public function countries(): array
-    {
-        $countries = [];
-
-        foreach ([...$this->calendar(CalendarFilter::upcoming()), ...$this->calendar(CalendarFilter::past())] as $view) {
-            $country = trim((string) ($view['venue']->fields['country'] ?? ''));
-            if ($country !== '') {
-                $countries[$country] = true;
-            }
-        }
-
-        $countries = array_keys($countries);
-        sort($countries);
-
-        return $countries;
-    }
-
-    /**
-     * The form's own option lists. Productions and months come from the
-     * current tense's performances only — the tense a visitor is looking at,
-     * not whatever else they already picked, so picking one filter never
-     * collapses the others' choices.
-     *
-     * @return array{productions: array<string, string>, countries: list<string>, months: list<string>, audiences: array<string, string>}
-     */
-    public function filterOptions(CalendarFilter $filter): array
-    {
-        $tense = $filter->past ? CalendarFilter::past() : CalendarFilter::upcoming();
-
-        $productions = [];
-        $months = [];
-        foreach ($this->calendar($tense) as $view) {
-            $productions[(string) $view['production']->post_name] = (string) $view['production']->post_title;
-            $months[substr((string) $view['date'], 0, 7)] = true;
-        }
-
-        $months = array_keys($months);
-        sort($months);
-
-        return [
-            'productions' => $productions,
-            'countries'   => $this->countries(),
-            'months'      => $months,
-            'audiences'   => $this->audienceOptions(),
-        ];
-    }
-
-    /**
-     * The form's audience `<option>` text, read from the model's OWN
-     * `audience` field declaration — its `options` are already post-filter
-     * (`ntdst_data()->register()` applies `ntdst/performance/fields` before
-     * building the model), so a site's relabelling reaches the form the same
-     * way it reaches the builder. Scoped to `CalendarFilter::audiences()` —
-     * the filter's allow-list, not the model's full vocabulary (`closed`
-     * is a valid stored value but was never a filterable one).
-     *
-     * A value the schema does not label falls back to itself, same as
-     * baseline's `FieldTypeBridge::selectLabel()` — the form still shows
-     * SOMETHING for it rather than an empty option.
+     * The model's own `audience` labels (post-filter, so a site's relabelling counts), scoped to
+     * what the filter accepts. An unlabelled value falls back to itself.
      *
      * @return array<string, string>
      */
-    public function audienceOptions(): array
+    private function audienceOptions(): array
     {
         $schema = ntdst_data()->get(PerformanceModel::POST_TYPE)->getSchema();
         $options = is_array($schema['audience']['options'] ?? null) ? $schema['audience']['options'] : [];
@@ -181,10 +189,24 @@ final class PerformanceRepository
         return $labels;
     }
 
+    /** Any post write bumps `last_changed`, which drops the memo. */
+    private function memo(string $key, callable $read): mixed
+    {
+        $stamp = wp_cache_get_last_changed('posts') . '|' . current_time('Y-m-d');
+        if ($stamp !== $this->memoStamp) {
+            $this->memo = [];
+            $this->memoStamp = $stamp;
+        }
+
+        if (!array_key_exists($key, $this->memo)) {
+            $this->memo[$key] = $read();
+        }
+
+        return $this->memo[$key];
+    }
+
     /**
-     * Primary: date, in the read's own direction. Ties: time, ascending —
-     * empty (all-day) sorts first, since '' is a prefix of every non-empty
-     * string.
+     * Date in the read's direction, then time ascending — all-day ('') first.
      *
      * @param array<string, mixed> $a
      * @param array<string, mixed> $b
@@ -194,28 +216,6 @@ final class PerformanceRepository
         $byDate = strcmp((string) $a['date'], (string) $b['date']) * ($descending ? -1 : 1);
 
         return $byDate !== 0 ? $byDate : strcmp((string) $a['time'], (string) $b['time']);
-    }
-
-    /**
-     * `$country` already went through `CalendarFilter::fromQuery()`'s
-     * `sanitize_text_field()` (which trims), matching what `countries()`
-     * offers. An exact meta-query match would compare that trimmed value
-     * against the RAW stored one, so this reads every published venue and
-     * trims on read instead — the same normalisation on both sides.
-     *
-     * @return list<int>
-     */
-    private static function venueIdsForCountry(string $country): array
-    {
-        $ids = [];
-
-        foreach (ntdst_data()->get(OrganisationModel::POST_TYPE)->withMeta()->limit(-1)->get() as $row) {
-            if (trim((string) ($row['meta']['country'] ?? '')) === $country) {
-                $ids[] = (int) ($row['id'] ?? 0);
-            }
-        }
-
-        return $ids;
     }
 
     /**

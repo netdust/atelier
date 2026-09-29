@@ -28,4 +28,23 @@ final class OrganisationRepository
     {
         return ntdst_data()->get(OrganisationModel::POST_TYPE)->update($id, $data);
     }
+
+    /**
+     * Published organisations in `$country`. Trimmed on read: a meta-query would compare the
+     * caller's trimmed value against a raw, possibly padded, stored one.
+     *
+     * @return list<int>
+     */
+    public function idsByCountry(string $country): array
+    {
+        $ids = [];
+
+        foreach (ntdst_data()->get(OrganisationModel::POST_TYPE)->withMeta()->limit(-1)->get() as $row) {
+            if (trim((string) ($row['meta']['country'] ?? '')) === $country) {
+                $ids[] = (int) ($row['id'] ?? 0);
+            }
+        }
+
+        return $ids;
+    }
 }
