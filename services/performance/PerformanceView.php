@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Performance;
 
-use Atelier\Models\OrganisationModel;
+use Atelier\Models\OrganisationRepository;
 use Atelier\Production\ProductionRepository;
 use DateTimeImmutable;
 use WP_Post;
@@ -37,7 +37,7 @@ final class PerformanceView
             return null;
         }
 
-        $venue = ntdst_data()->get(OrganisationModel::POST_TYPE)->find(self::relatedId($fields, 'venue'));
+        $venue = ntdst_get(OrganisationRepository::class)->find(self::relatedId($fields, 'venue'));
         if (is_wp_error($venue)) {
             return null;
         }

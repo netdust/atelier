@@ -17,15 +17,25 @@ defined('ABSPATH') || exit;
  */
 final class PerformanceSources
 {
-    /** @return array<string, array<string, mixed>> */
-    public static function queries(): array
+    /**
+     * The label a site gave the model (`ntdst/service/performance/config`),
+     * never a word of atelier's own choosing — a site that renames
+     * `Performances` to `Speeldata` sees `Speeldata` in the picker too.
+     *
+     * @param array<string, mixed> $config The resolved performance service
+     *                                     config — same shape `PerformanceModel::register()` takes.
+     * @return array<string, array<string, mixed>>
+     */
+    public static function queries(array $config): array
     {
+        $label = (string) ($config['labels']['name'] ?? 'Performances');
+
         return [
             'calendarPerformances' => [
                 'type'     => ['listOf' => 'Performance'],
                 'metadata' => [
-                    'label'  => 'Speeldata',
-                    'group'  => 'Speellijst',
+                    'label'  => $label,
+                    'group'  => $label,
                     'fields' => [
                         'past' => ['label' => 'Past', 'type' => 'boolean', 'default' => false],
                     ],

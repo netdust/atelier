@@ -23,14 +23,17 @@ final class PerformanceService
 
     private function init(): void
     {
-        PerformanceModel::register(apply_filters('ntdst/service/performance/config', self::DEFAULTS));
+        $config = apply_filters('ntdst/service/performance/config', self::DEFAULTS);
 
-        add_action('after_setup_theme', static function (): void {
+        PerformanceModel::register($config);
+
+        add_action('after_setup_theme', static function () use ($config): void {
             if (!function_exists('YOOtheme\app')) {
                 return;
             }
 
             require_once __DIR__ . '/yootheme.php';
+            register_calendar_source($config);
         }, 30);
     }
 }
