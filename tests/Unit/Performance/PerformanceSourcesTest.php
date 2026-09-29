@@ -30,13 +30,7 @@ final class PerformanceSourcesTest extends TestCase
         $this->assertSame('Performances', $fields['calendarPerformances']['metadata']['label']);
     }
 
-    /**
-     * Task 6: the two fields merged onto YOOtheme's own `Production` type
-     * (yootheme.md § the escape hatch — `objectType()` under a name the
-     * module already uses MERGES into it). Grouped under the same
-     * site-configured label as the calendar query, so both sit together
-     * in the picker.
-     */
+    /** Grouped under the same site label as the calendar query, so both sit together in the picker. */
     public function test_production_fields_are_declared_and_grouped(): void
     {
         $fields = PerformanceSources::productionFields([

@@ -33,11 +33,8 @@ final class ProductionRepository
     }
 
     /**
-     * Null for a draft slug too — `get()`/`first()` default to
-     * `post_status => 'publish'`. Null OUTRIGHT for an empty slug: `where()`
-     * maps `post_name` to WP_Query's `name`, which WP_Query ignores when
-     * empty — the query would run unconstrained and `first()` would hand
-     * back whatever published row sorts first, not "no match".
+     * Published only. An empty slug is refused outright: WP_Query ignores an empty `name` and would
+     * return the first published row.
      */
     public function findPublishedBySlug(string $slug): ?WP_Post
     {
