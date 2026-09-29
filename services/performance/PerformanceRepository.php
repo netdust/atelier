@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Performance;
 
+use Atelier\Models\OrganisationModel;
 use DateTimeImmutable;
 use WP_Error;
 use WP_Post;
@@ -32,7 +33,9 @@ final class PerformanceRepository
      * Upcoming or past performances as public views. Today is
      * `current_time('Y-m-d')` — the site's own timezone. `$from` overrides
      * the lower bound (the feed, Task 2); every call sets its limit
-     * explicitly (core's own default is 10 — Data.php:1988).
+     * explicitly (core's own default is 10 — Data.php:1988). `month`
+     * overrides upcoming/past outright — that calendar month, ascending,
+     * regardless of `$filter->past`.
      *
      * @return list<array<string, mixed>>
      */
@@ -41,12 +44,39 @@ final class PerformanceRepository
         $today = (string) current_time('Y-m-d');
         $query = ntdst_data()->get(PerformanceModel::POST_TYPE);
 
-        if ($filter->past) {
+        if ($filter->month !== null) {
+            [$first, $last] = self::monthBounds($filter->month);
+            $query->where('date', ['>=', $first])->where('date', ['<=', $last])->orderBy('date', 'ASC');
+            $descending = false;
+        } elseif ($filter->past) {
             $lower = $from ?? self::monthsAgo($today, 24);
             $query->where('date', ['<', $today])->where('date', ['>=', $lower])->orderBy('date', 'DESC');
+            $descending = true;
         } else {
             $lower = $from ?? $today;
             $query->where('date', ['>=', $lower])->orderBy('date', 'ASC');
+            $descending = false;
+        }
+
+        if ($filter->production !== null) {
+            $query->whereRelated('production', $filter->production);
+        }
+
+        if ($filter->audience !== null) {
+            $query->where('audience', $filter->audience);
+        }
+
+        if ($filter->country !== null) {
+            $venueIds = self::venueIdsForCountry($filter->country);
+            if ($venueIds === []) {
+                return [];
+            }
+
+            $query->whereGroup('OR', static function ($group) use ($venueIds): void {
+                foreach ($venueIds as $id) {
+                    $group->whereRelated('venue', $id);
+                }
+            });
         }
 
         $views = [];
@@ -62,24 +92,99 @@ final class PerformanceRepository
             }
         }
 
-        usort($views, static fn(array $a, array $b): int => self::compare($a, $b, $filter->past));
+        usort($views, static fn(array $a, array $b): int => self::compare($a, $b, $descending));
 
         return $views;
     }
 
     /**
-     * Primary: date, in the filter's own direction. Ties: time, ascending —
+     * The distinct venue `country` values across the upcoming view and the
+     * past window — both of `calendar()`'s own publish checks apply, so a
+     * draft's venue never surfaces a country nothing published uses
+     * (Threat 1). Used both as the `country` allow-list and to populate the
+     * form's options.
+     *
+     * @return list<string>
+     */
+    public function countries(): array
+    {
+        $countries = [];
+
+        foreach ([...$this->calendar(CalendarFilter::upcoming()), ...$this->calendar(CalendarFilter::past())] as $view) {
+            $country = trim((string) ($view['venue']->fields['country'] ?? ''));
+            if ($country !== '') {
+                $countries[$country] = true;
+            }
+        }
+
+        $countries = array_keys($countries);
+        sort($countries);
+
+        return $countries;
+    }
+
+    /**
+     * The form's own option lists. Productions and months come from the
+     * current tense's performances only — the tense a visitor is looking at,
+     * not whatever else they already picked, so picking one filter never
+     * collapses the others' choices.
+     *
+     * @return array{productions: array<string, string>, countries: list<string>, months: list<string>}
+     */
+    public function filterOptions(CalendarFilter $filter): array
+    {
+        $tense = $filter->past ? CalendarFilter::past() : CalendarFilter::upcoming();
+
+        $productions = [];
+        $months = [];
+        foreach ($this->calendar($tense) as $view) {
+            $productions[(string) $view['production']->post_name] = (string) $view['production']->post_title;
+            $months[substr((string) $view['date'], 0, 7)] = true;
+        }
+
+        $months = array_keys($months);
+        sort($months);
+
+        return [
+            'productions' => $productions,
+            'countries'   => $this->countries(),
+            'months'      => $months,
+        ];
+    }
+
+    /**
+     * Primary: date, in the read's own direction. Ties: time, ascending —
      * empty (all-day) sorts first, since '' is a prefix of every non-empty
      * string.
      *
      * @param array<string, mixed> $a
      * @param array<string, mixed> $b
      */
-    private static function compare(array $a, array $b, bool $past): int
+    private static function compare(array $a, array $b, bool $descending): int
     {
-        $byDate = strcmp((string) $a['date'], (string) $b['date']) * ($past ? -1 : 1);
+        $byDate = strcmp((string) $a['date'], (string) $b['date']) * ($descending ? -1 : 1);
 
         return $byDate !== 0 ? $byDate : strcmp((string) $a['time'], (string) $b['time']);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function venueIdsForCountry(string $country): array
+    {
+        $rows = ntdst_data()->get(OrganisationModel::POST_TYPE)->where('country', $country)->limit(-1)->get();
+
+        return array_values(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows));
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function monthBounds(string $month): array
+    {
+        $first = (new DateTimeImmutable($month . '-01'));
+
+        return [$first->format('Y-m-d'), $first->modify('last day of this month')->format('Y-m-d')];
     }
 
     private static function monthsAgo(string $date, int $months): string

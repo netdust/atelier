@@ -32,6 +32,12 @@ final class ProductionRepository
         return ntdst_data()->get(ProductionModel::POST_TYPE)->update($id, $data);
     }
 
+    /** Null for a draft slug too — `get()`/`first()` default to `post_status => 'publish'`. */
+    public function findPublishedBySlug(string $slug): ?WP_Post
+    {
+        return ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->first();
+    }
+
     /**
      * The credit roles as registered — after site filters, so a role a site
      * adds counts. Key => label.
