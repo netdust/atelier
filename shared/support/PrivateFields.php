@@ -6,6 +6,7 @@ namespace Atelier\Support;
 
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
+use Atelier\Performance\PerformanceModel;
 
 defined('ABSPATH') || exit;
 
@@ -19,6 +20,7 @@ final class PrivateFields
     private const BY_MODEL = [
         PersonModel::POST_TYPE       => PersonModel::PRIVATE,
         OrganisationModel::POST_TYPE => OrganisationModel::PRIVATE,
+        PerformanceModel::POST_TYPE  => PerformanceModel::PRIVATE,
     ];
 
     /**

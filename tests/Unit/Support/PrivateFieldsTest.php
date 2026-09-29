@@ -6,6 +6,7 @@ namespace AtelierTests\Unit\Support;
 
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
+use Atelier\Performance\PerformanceModel;
 use Atelier\Support\PrivateFields;
 use PHPUnit\Framework\TestCase;
 
@@ -22,5 +23,8 @@ final class PrivateFieldsTest extends TestCase
         }
 
         $this->assertSame(['x'], PrivateFields::exclude(['x'], 'production'));
+
+        // backstage-schedule fills PerformanceModel::PRIVATE; the registry entry is already wired.
+        $this->assertSame(['x', ...PerformanceModel::PRIVATE], PrivateFields::exclude(['x'], PerformanceModel::POST_TYPE));
     }
 }

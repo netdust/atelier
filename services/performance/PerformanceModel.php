@@ -17,12 +17,11 @@ final class PerformanceModel
     public const AUDIENCES = ['public', 'school', 'closed'];
     public const TICKET_STATUSES = ['announced', 'on_sale', 'few_left', 'sold_out', 'cancelled'];
 
-    /**
-     * Read by the calendar and its feed; a site relabels them, never drops
-     * them — a performance with no `date` or `venue` is unreadable, not just
-     * unstyled.
-     */
+    /** A site relabels these, never drops them: without a date or venue a performance is unreadable. */
     public const LOCKED = ['production', 'venue', 'date', 'audience'];
+
+    /** Empty until backstage-schedule adds its fields to this post (D8). */
+    public const PRIVATE = [];
 
     public static function register(array $config): void
     {
@@ -52,7 +51,7 @@ final class PerformanceModel
             'audience'         => Vocabulary::oneOf(self::AUDIENCES),
             'language_version' => ['type' => 'text'],
             'ticket_url'       => ['type' => 'url'],
-            'ticket_status'    => Vocabulary::oneOf(self::TICKET_STATUSES, false) + ['default' => 'announced'],
+            'ticket_status'    => Vocabulary::oneOf(self::TICKET_STATUSES, false),
         ];
     }
 }
