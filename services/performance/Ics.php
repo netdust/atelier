@@ -10,12 +10,8 @@ use DateTimeZone;
 defined('ABSPATH') || exit;
 
 /**
- * A pure-PHP iCalendar (RFC 5545) writer — no WordPress calls, unit tested
- * directly. The only code that turns performance data into calendar bytes:
- * every value goes through text() before it reaches a content line (Threat 3
- * / M5), and the writer emits only its own property names, so a forged
- * `END:VEVENT\r\nBEGIN:VEVENT…` stored in a title or venue name can never
- * become a second event or property.
+ * RFC 5545 writer, no WordPress calls. Every value goes through text() and only its own property
+ * names are emitted, so stored content can never forge a second VEVENT (Threat 3 / M5).
  */
 final class Ics
 {
@@ -97,39 +93,22 @@ final class Ics
     }
 
     /**
-     * Escapes a value for a content line (RFC 5545 §3.3.11). `mb_scrub()`
-     * first — the calendar's own charset is UTF-8, and a value that reached
-     * storage some other way than this writer (a direct SQL import; Threat
-     * 3's own example) can carry bytes that are not valid UTF-8 at all,
-     * which both breaks the output for a real parser and is what used to
-     * send fold()'s cut point past 0 (see fold()). Then `\` — escaping it
-     * after `;`/`,` would double-escape the backslashes those steps just
-     * inserted — then `;` and `,`, then every CRLF, CR and LF collapses to a
-     * literal `\n`. That last step is the one that matters for Threat 3: a
-     * stored value can carry a real line break, but never an actual CR or LF
-     * byte, so it can never start a new content line, let alone
-     * `END:VEVENT` / `BEGIN:VEVENT`.
+     * RFC 5545 §3.3.11. `\` before `;`/`,` so their inserted backslashes aren't doubled; CR/LF become
+     * a literal `\n`, so a stored value can never start a content line of its own (Threat 3).
      */
     public static function text(string $value): string
     {
         $value = mb_scrub($value, 'UTF-8');
         $value = str_replace('\\', '\\\\', $value);
         $value = str_replace([';', ','], ['\;', '\,'], $value);
+        $value = str_replace(["\r\n", "\r", "\n"], '\n', $value);
 
-        return str_replace(["\r\n", "\r", "\n"], '\n', $value);
+        return (string) preg_replace('/[\x00-\x08\x0B-\x1F\x7F]/', '', $value);
     }
 
     /**
-     * Folds one content line at 75 octets (RFC 5545 §3.1): every physical
-     * line but the last ends in CRLF, and every line after the first opens
-     * with one space, itself counted inside that line's 75 octets. The cut
-     * point backs off a UTF-8 continuation byte (10xxxxxx) so a multibyte
-     * character is always kept whole on one physical line — but a run of
-     * ≥75 continuation bytes with no lead byte in front of them (invalid
-     * UTF-8; text() scrubs this before it reaches here, but fold() is
-     * public on its own) would back the cut off all the way to 0, which
-     * cuts NOTHING and never shrinks $rest. Every call must make progress,
-     * so a back-off that reaches 0 falls back to the full width instead.
+     * RFC 5545 §3.1 fold at 75 octets, never inside a UTF-8 character. A back-off that reaches 0
+     * (a run of stray continuation bytes) cuts at full width instead, or the loop would never progress.
      */
     public static function fold(string $line): string
     {

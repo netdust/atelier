@@ -10,11 +10,7 @@ use DateTimeZone;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Ics is pure PHP with no WordPress calls — the writer for `/speellijst.ics/`
- * (Threat model M5). text() and fold() are the two functions the threat model
- * names by name: text() is what stops a stored title or venue name forging a
- * second VEVENT (Threat 3, F4), fold() is what keeps a long line from
- * splitting a UTF-8 character in two.
+ * The `.ics` writer (M5): text() stops stored content forging a VEVENT, fold() keeps UTF-8 whole.
  */
 final class IcsTest extends TestCase
 {
@@ -113,12 +109,8 @@ final class IcsTest extends TestCase
     }
 
     /**
-     * Threat 3 on the writer's own output, not just text(): a forged
-     * `END:VEVENT\r\nBEGIN:VEVENT` inside a summary must not add a second
-     * event to a calendar of one. `BEGIN:VEVENT` surviving as ASCII text
-     * INSIDE the escaped SUMMARY value is expected and harmless — a calendar
-     * parser reads logical (unfolded) lines, so what matters is that only one
-     * of them IS `BEGIN:VEVENT`, not that the substring never appears.
+     * Threat 3 on the whole output: `BEGIN:VEVENT` may survive as escaped text inside SUMMARY, but only
+     * one logical line may BE `BEGIN:VEVENT`.
      */
     public function test_forged_content_cannot_add_a_second_event(): void
     {
@@ -133,15 +125,7 @@ final class IcsTest extends TestCase
         $this->assertNotContains('UID:forged', $logical);
     }
 
-    /**
-     * fold()'s UTF-8 back-off must never reach a point where it cuts
-     * nothing: ≥75 consecutive continuation bytes (0x80–0xBF, e.g. from a
-     * direct SQL import that never went through text()'s own scrub) used to
-     * back the cut point off all the way to 0, emit an empty continuation
-     * line, and loop on a $rest that never shrank. Run under a `timeout`
-     * from the shell (see the task report) so a regression here kills the
-     * test runner, not this whole session.
-     */
+    /** ≥75 stray continuation bytes used to back the cut off to 0 and loop forever. */
     public function test_fold_terminates_on_long_invalid_utf8_run(): void
     {
         $line = 'SUMMARY:' . str_repeat("\x80", 80);
@@ -153,13 +137,7 @@ final class IcsTest extends TestCase
         }
     }
 
-    /**
-     * text() must hand fold() (and every consumer) valid UTF-8 even when
-     * the stored value isn't — the calendar's own charset is UTF-8, and an
-     * invalid byte sequence loose in the output would corrupt every
-     * property after it for a real parser, not just risk the fold() hang
-     * above.
-     */
+    /** Invalid UTF-8 in storage would corrupt every property after it for a real parser. */
     public function test_text_scrubs_invalid_utf8(): void
     {
         $scrubbed = Ics::text("before\x80\x80\x80after");
@@ -167,10 +145,14 @@ final class IcsTest extends TestCase
         $this->assertTrue(mb_check_encoding($scrubbed, 'UTF-8'));
     }
 
+    /** RFC 5545 §3.3.11 forbids CONTROL in TEXT; strict clients reject the whole feed. */
+    public function test_text_strips_control_characters_but_keeps_tab(): void
+    {
+        $this->assertSame("a\tb\\nc", Ics::text("a\tb\x00\x07\x0B\x1B\x7F\nc"));
+    }
+
     /**
-     * RFC 5545 §3.1 unfolding: a continuation physical line opens with a
-     * single space, which is stripped and the line joined onto the previous
-     * one.
+     * RFC 5545 §3.1 unfolding.
      *
      * @return list<string>
      */
