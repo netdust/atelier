@@ -20,6 +20,17 @@ final class PerformanceService
         'labels'   => ['name' => 'Performances', 'singular_name' => 'Performance'],
     ];
 
+    /** The calendar page's own JSON-LD window (Task 5). */
+    private const SCHEMA_LIMIT = 50;
+
+    /** PerformanceModel::TICKET_STATUSES, minus `announced` (no offer at all). */
+    private const AVAILABILITY = [
+        'on_sale'   => 'InStock',
+        'few_left'  => 'LimitedAvailability',
+        'sold_out'  => 'SoldOut',
+        'cancelled' => 'Discontinued',
+    ];
+
     /** @var array<string, mixed> */
     private array $config;
 
@@ -60,6 +71,8 @@ final class PerformanceService
             require_once __DIR__ . '/yootheme.php';
             register_calendar_source($this->config);
         }, 30);
+
+        add_filter('ntdst/baseline/schema/custom', [$this, 'schema'], 10, 2);
     }
 
     /**
@@ -128,6 +141,130 @@ final class PerformanceService
             'toggle_label' => $filter->past ? $atts['upcoming'] : $atts['past'],
             'is_empty'     => $repository->calendar($filter) === [],
         ]);
+    }
+
+    /**
+     * `TheaterEvent` JSON-LD on baseline's `ntdst/baseline/schema/custom`
+     * filter: one entry per public-audience performance (R-c) — the calendar
+     * page's own current filter (capped at `SCHEMA_LIMIT`), a production
+     * single's own upcoming performances, or nothing anywhere else. Every
+     * output still reads a performance through `PerformanceView` alone
+     * (`calendar()`), so a private field Backstage later adds has no door
+     * out through here either.
+     *
+     * @param array<int, mixed> $schemas
+     *
+     * @return array<int, mixed>
+     */
+    public function schema(array $schemas, ?WP_Post $post): array
+    {
+        if (is_page($this->config['calendar'])) {
+            $views = array_slice($this->publicViews(CalendarFilter::fromRequest()), 0, self::SCHEMA_LIMIT);
+        } elseif ($post instanceof WP_Post && is_singular('production')) {
+            $views = $this->publicViews(CalendarFilter::forProduction($post->ID));
+        } else {
+            return $schemas;
+        }
+
+        foreach ($views as $view) {
+            $schemas[] = $this->toTheaterEvent($view);
+        }
+
+        return $schemas;
+    }
+
+    /**
+     * `calendar()`'s own reads, narrowed to `audience === 'public'` (R-c) —
+     * the JSON-LD is a machine-readable signal, never the visitor's own
+     * filter choice (a `?audience=school` request must not surface a school
+     * date here either).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function publicViews(CalendarFilter $filter): array
+    {
+        $views = ntdst_get(PerformanceRepository::class)->calendar($filter);
+
+        return array_values(array_filter(
+            $views,
+            static fn(array $view): bool => $view['audience'] === 'public',
+        ));
+    }
+
+    /**
+     * One `PerformanceView::from()` shape as a `TheaterEvent`. Small on
+     * purpose (Task 5 brief) — a per-field builder would just move the same
+     * lines one level down.
+     *
+     * @param array<string, mixed> $view
+     *
+     * @return array<string, mixed>
+     */
+    private function toTheaterEvent(array $view): array
+    {
+        /** @var WP_Post $production */
+        $production = $view['production'];
+        /** @var WP_Post $venue */
+        $venue = $view['venue'];
+
+        $allDay = (bool) $view['all_day'];
+        /** @var DateTimeImmutable $start */
+        $start = $view['start'];
+        $runtime = (int) ($production->fields['runtime'] ?? 0);
+
+        // empty(), matching ProductionService::schema()'s own convention for
+        // an optional numeric field: an unset float field reads back as 0,
+        // never a real coordinate.
+        $lat = $venue->fields['lat'] ?? null;
+        $lng = $venue->fields['lng'] ?? null;
+        $hasGeo = !empty($lat) && !empty($lng);
+
+        $event = [
+            '@context'            => 'https://schema.org',
+            '@type'               => 'TheaterEvent',
+            'name'                => (string) $production->post_title,
+            'startDate'           => $allDay ? $start->format('Y-m-d') : $start->format(DATE_ATOM),
+            'endDate'             => (!$allDay && $runtime > 0) ? $start->modify("+{$runtime} minutes")->format(DATE_ATOM) : null,
+            'eventStatus'         => $view['ticket_status'] === 'cancelled' ? 'EventCancelled' : 'EventScheduled',
+            'eventAttendanceMode' => 'OfflineEventAttendanceMode',
+            'location'            => array_filter([
+                '@type'   => 'Place',
+                'name'    => (string) $venue->post_title,
+                'address' => array_filter([
+                    '@type'           => 'PostalAddress',
+                    'streetAddress'   => (string) ($venue->fields['address'] ?? ''),
+                    'addressLocality' => (string) ($venue->fields['city'] ?? ''),
+                    'addressCountry'  => (string) ($venue->fields['country'] ?? ''),
+                ], static fn(string $v): bool => $v !== ''),
+                'geo'     => $hasGeo ? [
+                    '@type'     => 'GeoCoordinates',
+                    'latitude'  => (float) $lat,
+                    'longitude' => (float) $lng,
+                ] : null,
+            ], static fn($v): bool => $v !== null && $v !== []),
+            'workPerformed' => [
+                '@type' => 'CreativeWork',
+                'name'  => (string) $production->post_title,
+                'url'   => (string) get_permalink($production),
+            ],
+            'url' => (string) get_permalink($production),
+        ];
+
+        // Keyed off AVAILABILITY, not "!== 'announced'": a status the map
+        // doesn't know (unset, or anything but the five the model allows)
+        // means no known sale state, same as an explicit 'announced' would —
+        // never an offer with an empty availability.
+        $ticketUrl = (string) $view['ticket_url'];
+        $availability = self::AVAILABILITY[$view['ticket_status']] ?? null;
+        if ($ticketUrl !== '' && $availability !== null) {
+            $event['offers'] = [
+                '@type'        => 'Offer',
+                'url'          => $ticketUrl,
+                'availability' => $availability,
+            ];
+        }
+
+        return array_filter($event, static fn($v): bool => $v !== null);
     }
 
     /**
