@@ -33,6 +33,19 @@ final class ProductionRepository
     }
 
     /**
+     * Published only. An empty slug is refused outright: WP_Query ignores an empty `name` and would
+     * return the first published row.
+     */
+    public function findPublishedBySlug(string $slug): ?WP_Post
+    {
+        if ($slug === '') {
+            return null;
+        }
+
+        return ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->first();
+    }
+
+    /**
      * The credit roles as registered — after site filters, so a role a site
      * adds counts. Key => label.
      *
