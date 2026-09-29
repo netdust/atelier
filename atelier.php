@@ -2,7 +2,7 @@
 
 /**
  * Atelier
- * Version: 0.1.0
+ * Version: 0.3.0
  *
  * The creative-sector domain layer for atelier296 clients, between
  * ntdst-baseline and a site's own plugin. Each service lives in its own
