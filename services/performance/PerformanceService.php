@@ -49,13 +49,11 @@ final class PerformanceService
         add_shortcode('atelier_calendar_filters', [$this, 'renderFilters']);
 
         add_action('init', function (): void {
-            $config = $this->config;
-
             ntdst_pages()->path(
-                '/' . $config['calendar'] . '.ics',
+                $this->calendarPaths('.ics'),
                 fn () => ($body = $this->feed($_GET)) === false
                     ? false
-                    : ntdst_response()->inline($body, $config['calendar'] . '.ics'),
+                    : ntdst_response()->inline($body, $this->feedFilename()),
             );
         });
 
@@ -78,9 +76,38 @@ final class PerformanceService
      */
     public function feedUrl(array $params): string
     {
-        $calendar = (string) ($this->config['calendar'] ?? self::DEFAULTS['calendar']);
+        return add_query_arg(array_map('rawurlencode', $params), ntdst_pages()->url($this->calendarPaths('.ics/')));
+    }
 
-        return add_query_arg(array_map('rawurlencode', $params), ntdst_pages()->url('/' . $calendar . '.ics/'));
+    private function feedFilename(): string
+    {
+        return $this->calendarWord() . '.ics';
+    }
+
+    /**
+     * `calendar` is one word, or one per language; the first entry answers a language it lacks.
+     */
+    private function calendarWord(): string
+    {
+        $calendar = $this->config['calendar'] ?? self::DEFAULTS['calendar'];
+
+        if (!is_array($calendar)) {
+            return (string) $calendar;
+        }
+
+        return (string) ($calendar[ntdst_pages()->language()] ?? reset($calendar));
+    }
+
+    /**
+     * @return string|array<string, string>
+     */
+    private function calendarPaths(string $tail): string|array
+    {
+        $calendar = $this->config['calendar'] ?? self::DEFAULTS['calendar'];
+
+        return is_array($calendar)
+            ? array_map(static fn ($word): string => '/' . $word . $tail, $calendar)
+            : '/' . $calendar . $tail;
     }
 
     /**
@@ -143,7 +170,7 @@ final class PerformanceService
      */
     public function schema(array $schemas, ?WP_Post $post): array
     {
-        if (is_page($this->config['calendar'])) {
+        if (is_page($this->calendarWord())) {
             $views = array_slice($this->publicViews(CalendarFilter::fromRequest()), 0, self::SCHEMA_LIMIT);
         } elseif ($post instanceof WP_Post && is_singular(ProductionModel::POST_TYPE)) {
             $views = $this->publicViews(CalendarFilter::forProduction($post->ID));
