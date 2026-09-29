@@ -210,7 +210,7 @@ final class PerformanceService
         $allDay = (bool) $view['all_day'];
         /** @var DateTimeImmutable $start */
         $start = $view['start'];
-        $runtime = (int) ($production->fields['runtime'] ?? 0);
+        $runtime = self::runtimeMinutes($production);
 
         // empty(), matching ProductionService::schema()'s own convention for
         // an optional numeric field: an unset float field reads back as 0,
@@ -224,8 +224,8 @@ final class PerformanceService
             '@type'               => 'TheaterEvent',
             'name'                => (string) $production->post_title,
             'startDate'           => $allDay ? $start->format('Y-m-d') : $start->format(DATE_ATOM),
-            'endDate'             => (!$allDay && $runtime > 0) ? $start->modify("+{$runtime} minutes")->format(DATE_ATOM) : null,
-            'eventStatus'         => $view['ticket_status'] === 'cancelled' ? 'EventCancelled' : 'EventScheduled',
+            'endDate'             => (!$allDay && $runtime !== null) ? $start->modify("+{$runtime} minutes")->format(DATE_ATOM) : null,
+            'eventStatus'         => self::cancelled($view) ? 'EventCancelled' : 'EventScheduled',
             'eventAttendanceMode' => 'OfflineEventAttendanceMode',
             'location'            => array_filter([
                 '@type'   => 'Place',
@@ -337,17 +337,15 @@ final class PerformanceService
             (string) ($venue->fields['country'] ?? ''),
         ], static fn(string $part): bool => $part !== ''));
 
-        $runtime = (int) ($production->fields['runtime'] ?? 0);
-
         return [
             'uid'       => 'performance-' . $view['id'] . '@' . self::homeHost(),
             'start'     => $view['start'],
             'all_day'   => (bool) $view['all_day'],
-            'minutes'   => $runtime > 0 ? $runtime : null,
+            'minutes'   => self::runtimeMinutes($production),
             'summary'   => (string) $production->post_title,
             'location'  => $location,
             'url'       => (string) get_permalink($production),
-            'cancelled' => $view['ticket_status'] === 'cancelled',
+            'cancelled' => self::cancelled($view),
             'stamp'     => $stamp,
         ];
     }
@@ -355,5 +353,24 @@ final class PerformanceService
     private static function homeHost(): string
     {
         return (string) wp_parse_url(home_url(), PHP_URL_HOST);
+    }
+
+    /** The production's own runtime, shared by the feed (Task 4) and the schema (Task 5). */
+    private static function runtimeMinutes(WP_Post $production): ?int
+    {
+        $minutes = (int) ($production->fields['runtime'] ?? 0);
+
+        return $minutes > 0 ? $minutes : null;
+    }
+
+    /**
+     * `ticket_status === 'cancelled'`, shared by the feed's own STATUS and
+     * the schema's `eventStatus` (Task 4 / Task 5).
+     *
+     * @param array<string, mixed> $view
+     */
+    private static function cancelled(array $view): bool
+    {
+        return $view['ticket_status'] === 'cancelled';
     }
 }
