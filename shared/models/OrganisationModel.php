@@ -34,14 +34,14 @@ final class OrganisationModel
     private static function fields(): array
     {
         return [
-            'address'      => ['type' => 'text'],
-            'city'         => ['type' => 'text'],
-            'country'      => ['type' => 'text'],
+            'address'      => ['type' => 'text', 'translate' => false],
+            'city'         => ['type' => 'text', 'translate' => false],
+            'country'      => ['type' => 'text', 'translate' => false],
             'lat'          => ['type' => 'float'],
             'lng'          => ['type' => 'float'],
             'website'      => ['type' => 'url'],
-            'contacts'     => ['type' => 'textarea'],
-            'tech_contact' => ['type' => 'textarea'],
+            'contacts'     => ['type' => 'textarea', 'translate' => false],
+            'tech_contact' => ['type' => 'textarea', 'translate' => false],
         ];
     }
 }

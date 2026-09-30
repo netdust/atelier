@@ -44,6 +44,7 @@ final class PerformanceModel
             'date'       => ['type' => 'date', 'required' => true],
             'time'       => [
                 'type'        => 'text',
+                'translate'   => false,
                 'description' => 'HH:MM, 24-hour. Empty means all-day.',
                 'validate'    => static fn($value) => ($value === '' || preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $value) === 1)
                     ?: 'time must be HH:MM (24-hour) or empty',

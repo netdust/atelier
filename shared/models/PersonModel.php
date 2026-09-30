@@ -32,9 +32,9 @@ final class PersonModel
         return [
             'core_team' => ['type' => 'bool'],
             'email'     => ['type' => 'email'],
-            'phone'     => ['type' => 'text'],
+            'phone'     => ['type' => 'text', 'translate' => false],
             'wp_user'   => ['type' => 'int'],
-            'dietary'   => ['type' => 'textarea'],
+            'dietary'   => ['type' => 'textarea', 'translate' => false],
         ];
     }
 }
