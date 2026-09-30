@@ -59,7 +59,7 @@ final class ProductionModel
                 'type'       => 'repeater',
                 'sub_fields' => [
                     'quote'  => ['type' => 'textarea', 'label' => 'Quote'],
-                    'source' => ['type' => 'text', 'label' => 'Source'],
+                    'source' => ['type' => 'text', 'label' => 'Source', 'translate' => false],
                     'date'   => ['type' => 'date', 'label' => 'Date'],
                 ],
             ],
@@ -73,7 +73,7 @@ final class ProductionModel
                 'description' => 'People without a page of their own',
                 'sub_fields'  => [
                     'role' => ['type' => 'text', 'label' => 'Role'],
-                    'name' => ['type' => 'text', 'label' => 'Name'],
+                    'name' => ['type' => 'text', 'label' => 'Name', 'translate' => false],
                 ],
             ],
             'coproducers' => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
