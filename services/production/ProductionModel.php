@@ -16,6 +16,9 @@ final class ProductionModel
     public const POST_TYPE = 'production';
     /** Terms of production_stage: a taxonomy, so the builder filters "touring" natively. */
     public const STAGES = ['in_creation' => 'In creation', 'touring' => 'Touring', 'archive' => 'Archive'];
+    /** Fixed vocabularies like the stage: editors pick, never invent. */
+    public const LANGUAGES = ['nl' => 'Dutch', 'fr' => 'French', 'en' => 'English', 'non-verbal' => 'Non-verbal'];
+    public const AUDIENCES = ['public' => 'Public', 'school' => 'School', 'family' => 'Family'];
     public const KINDS = ['premiere', 'rerun', 'also'];
 
     /** Read by atelier's own lists; a site may relabel them, never remove them. */
@@ -36,8 +39,8 @@ final class ProductionModel
             'menu_icon'  => 'dashicons-tickets-alt',
             'taxonomies' => [
                 'production_stage'    => PublicModel::taxonomy('Stages', 'Stage', self::STAGES, 'in_creation'),
-                'production_language' => PublicModel::taxonomy('Languages', 'Language'),
-                'production_audience' => PublicModel::taxonomy('Audiences', 'Audience'),
+                'production_language' => PublicModel::taxonomy('Languages', 'Language', self::LANGUAGES),
+                'production_audience' => PublicModel::taxonomy('Audiences', 'Audience', self::AUDIENCES),
             ],
         ]);
     }
