@@ -25,14 +25,14 @@ final class PlanningWriters
     }
 
     /**
-     * A writer registered earlier for one of these types is kept.
+     * A writer registered earlier for one of these types is kept; an earlier
+     * callback that answered no map is not a reason to lose these three.
      *
-     * @param array<string, object> $writers
      * @return array<string, object>
      */
-    public function writers(array $writers): array
+    public function writers(mixed $writers): array
     {
-        return $writers + [
+        return (is_array($writers) ? $writers : []) + [
             ActivityModel::POST_TYPE   => $this->activities,
             AssignmentModel::POST_TYPE => $this->assignments,
             AbsenceModel::POST_TYPE    => $this->absences,
