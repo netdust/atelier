@@ -20,8 +20,10 @@ final class PlanningService
 
     private const TITLED = [AssignmentModel::POST_TYPE, AbsenceModel::POST_TYPE];
 
-    public function __construct(private readonly PlanningTitles $titles)
-    {
+    public function __construct(
+        private readonly PlanningTitles $titles,
+        private readonly ActivityColumns $columns,
+    ) {
         $this->init();
     }
 
@@ -32,6 +34,8 @@ final class PlanningService
         ActivityModel::register($config['activity']);
         AssignmentModel::register($config['assignment']);
         AbsenceModel::register($config['absence']);
+
+        $this->columns->register();
 
         // Both write paths end here: the repository, and the admin screen through core's update().
         foreach (['ntdst/model/created', 'ntdst/model/updated'] as $hook) {
