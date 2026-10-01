@@ -42,13 +42,7 @@ final class PerformanceModel
             'production' => ['type' => 'relation', 'post_type' => ProductionModel::POST_TYPE, 'multiple' => false, 'required' => true],
             'venue'      => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => false, 'required' => true],
             'date'       => ['type' => 'date', 'required' => true],
-            'time'       => [
-                'type'        => 'text',
-                'translate'   => false,
-                'description' => 'HH:MM, 24-hour. Empty means all-day.',
-                'validate'    => static fn($value) => ($value === '' || preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $value) === 1)
-                    ?: 'time must be HH:MM (24-hour) or empty',
-            ],
+            'time'       => Vocabulary::time(),
             'audience'         => Vocabulary::oneOf(self::AUDIENCES),
             'language_version' => ['type' => 'text'],
             'ticket_url'       => ['type' => 'url'],

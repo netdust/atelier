@@ -7,6 +7,9 @@ namespace Atelier\Support;
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
 use Atelier\Performance\PerformanceModel;
+use Atelier\Planning\AbsenceModel;
+use Atelier\Planning\ActivityModel;
+use Atelier\Planning\AssignmentModel;
 
 defined('ABSPATH') || exit;
 
@@ -21,6 +24,10 @@ final class PrivateFields
         PersonModel::POST_TYPE       => PersonModel::PRIVATE,
         OrganisationModel::POST_TYPE => OrganisationModel::PRIVATE,
         PerformanceModel::POST_TYPE  => PerformanceModel::PRIVATE,
+        // Every planning field: the whole model stays out of the builder.
+        ActivityModel::POST_TYPE     => ActivityModel::PRIVATE,
+        AssignmentModel::POST_TYPE   => AssignmentModel::PRIVATE,
+        AbsenceModel::POST_TYPE      => AbsenceModel::PRIVATE,
     ];
 
     /**
