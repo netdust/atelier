@@ -22,7 +22,9 @@ final class RelationTargets
     {
         foreach ($targets as $field => [$type, $code]) {
             foreach ((array) ($data[$field] ?? []) as $id) {
-                if ((int) $id > 0 && get_post_type((int) $id) !== $type) {
+                // Core stores absint() of each item, so -5 is judged as the 5 it becomes.
+                $stored = absint($id);
+                if ($stored !== 0 && get_post_type($stored) !== $type) {
                     return new WP_Error($code, sprintf('The %s is not a %s.', $field, $type));
                 }
             }

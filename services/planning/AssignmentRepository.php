@@ -175,15 +175,18 @@ final class AssignmentRepository
         $touches = static fn(string ...$keys): bool => $id === null
             || array_intersect_key($data, array_flip($keys)) !== [];
 
-        $activityId = (int) ($after['activity'][0] ?? 0);
-        $personId = (int) ($after['person'][0] ?? 0);
+        $activityId = absint($after['activity'][0] ?? 0);
+        $personId = absint($after['person'][0] ?? 0);
         $name = trim((string) ($after['name'] ?? ''));
 
         if ($touches('person', 'name') && ($personId === 0) === ($name === '')) {
             return new WP_Error('person_or_name', 'An assignment names exactly one of a person or a name.');
         }
 
-        $wrongType = RelationTargets::refuse($data, ['person' => [PersonModel::POST_TYPE, 'not_a_person']]);
+        $wrongType = RelationTargets::refuse($data, [
+            'activity' => [ActivityModel::POST_TYPE, 'not_an_activity'],
+            'person'   => [PersonModel::POST_TYPE, 'not_a_person'],
+        ]);
         if ($wrongType !== null) {
             return $wrongType;
         }
