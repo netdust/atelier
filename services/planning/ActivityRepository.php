@@ -41,6 +41,12 @@ final class ActivityRepository
         return ntdst_data()->get(ActivityModel::POST_TYPE)->update($id, $data);
     }
 
+    /** To the trash, never past it; an id of another type is core's `not_found`, as on update(). */
+    public function delete(int $id): bool|WP_Error
+    {
+        return ntdst_data()->get(ActivityModel::POST_TYPE)->delete($id);
+    }
+
     /**
      * The activities of a date window, both ends included, by date then start
      * (an all-day activity before a timed one), then by creation.

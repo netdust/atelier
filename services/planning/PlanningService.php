@@ -23,6 +23,7 @@ final class PlanningService
     public function __construct(
         private readonly PlanningTitles $titles,
         private readonly ActivityColumns $columns,
+        private readonly PlanningWriters $writers,
     ) {
         $this->init();
     }
@@ -36,6 +37,7 @@ final class PlanningService
         AbsenceModel::register($config['absence']);
 
         $this->columns->register();
+        $this->writers->register();
 
         // Both write paths end here: the repository, and the admin screen through core's update().
         foreach (['ntdst/model/created', 'ntdst/model/updated'] as $hook) {

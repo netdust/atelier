@@ -46,6 +46,12 @@ final class AbsenceRepository
         return ntdst_data()->get(AbsenceModel::POST_TYPE)->update($id, $data);
     }
 
+    /** To the trash, never past it; an id of another type is core's `not_found`, as on update(). */
+    public function delete(int $id): bool|WP_Error
+    {
+        return ntdst_data()->get(AbsenceModel::POST_TYPE)->delete($id);
+    }
+
     /**
      * The absences touching a window, both ends included, earliest first.
      *

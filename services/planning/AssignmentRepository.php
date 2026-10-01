@@ -48,6 +48,12 @@ final class AssignmentRepository
         return $refused ?? ntdst_data()->get(AssignmentModel::POST_TYPE)->update($id, $data);
     }
 
+    /** To the trash, never past it; an id of another type is core's `not_found`, as on update(). */
+    public function delete(int $id): bool|WP_Error
+    {
+        return ntdst_data()->get(AssignmentModel::POST_TYPE)->delete($id);
+    }
+
     /**
      * The assignments on one activity, oldest first.
      *
