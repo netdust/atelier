@@ -17,8 +17,10 @@ defined('ABSPATH') || exit;
  */
 final class AssignmentRepository
 {
-    public function __construct(private readonly PersonRepository $persons)
-    {
+    public function __construct(
+        private readonly PersonRepository $persons,
+        private readonly ActivityRepository $activities,
+    ) {
     }
 
     public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
@@ -86,22 +88,16 @@ final class AssignmentRepository
             return [];
         }
 
-        $activities = [];
-        foreach (ntdst_data()->get(ActivityModel::POST_TYPE)->whereIn('ID', $ids)->withMeta()->get() as $activity) {
-            $activities[(int) $activity['id']] = $activity;
-        }
-
-        $rows = [];
+        $byActivity = [];
         foreach ($assignments as $assignment) {
-            $activity = $activities[(int) ($assignment['meta']['activity'][0] ?? 0)] ?? null;
-            if ($activity === null) {
-                continue;
-            }
-            $rows[] = $assignment + ['activity' => $activity];
+            $byActivity[(int) ($assignment['meta']['activity'][0] ?? 0)] = $assignment;
         }
 
-        usort($rows, static fn(array $a, array $b): int => strcmp((string) $a['activity']['meta']['date'], (string) $b['activity']['meta']['date'])
-            ?: strcmp((string) $a['activity']['meta']['start'], (string) $b['activity']['meta']['start']));
+        // between() orders by date then start; a missing bound is the far past or future.
+        $rows = [];
+        foreach ($this->activities->between($from ?? '0000-01-01', $to ?? '9999-12-31', ['ids' => $ids]) as $activity) {
+            $rows[] = $byActivity[(int) $activity['id']] + ['activity' => $activity];
+        }
 
         return $rows;
     }
