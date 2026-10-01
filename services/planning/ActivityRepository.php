@@ -54,6 +54,7 @@ final class ActivityRepository
             ->where('date', ['>=', $from])
             ->where('date', ['<=', $to])
             ->orderBy('ID', 'ASC')
+            ->limit(-1)
             ->withMeta();
 
         foreach (['kind', 'status'] as $key) {

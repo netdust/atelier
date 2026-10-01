@@ -67,7 +67,15 @@ final class PlanningTitles
             return;
         }
 
-        $repository->update($id, ['title' => $title]);
+        $written = $repository->update($id, ['title' => $title]);
+        if (is_wp_error($written)) {
+            ntdst_log('atelier')->warning(sprintf(
+                'planning: title of %s %d not written — %s',
+                $postType,
+                $id,
+                $written->get_error_message(),
+            ));
+        }
     }
 
     private function forAssignment(WP_Post $assignment): ?string

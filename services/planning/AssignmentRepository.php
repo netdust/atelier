@@ -58,6 +58,7 @@ final class AssignmentRepository
         $query = ntdst_data()->get(AssignmentModel::POST_TYPE)
             ->whereRelated('activity', $activityId)
             ->orderBy('ID', 'ASC')
+            ->limit(-1)
             ->withMeta();
 
         if ($status !== null) {
@@ -76,6 +77,7 @@ final class AssignmentRepository
     {
         $assignments = ntdst_data()->get(AssignmentModel::POST_TYPE)
             ->whereRelated('person', $personId)
+            ->limit(-1)
             ->withMeta()
             ->get();
 
@@ -147,7 +149,12 @@ final class AssignmentRepository
         return $data;
     }
 
-    /** The cross-field rules, against the record as it will be after the write. */
+    /**
+     * The cross-field rules, against the record as it will be after the write.
+     * A rule judges only a write that touches one of its fields (or a create):
+     * wp-admin may have stored a record outside them (R-1), and a later write
+     * of another field — the composed title — must still land.
+     */
     private function refuse(array $data, ?int $id): ?WP_Error
     {
         $after = $data;
@@ -158,22 +165,22 @@ final class AssignmentRepository
             }
         }
 
+        $touches = static fn(string ...$keys): bool => $id === null
+            || array_intersect_key($data, array_flip($keys)) !== [];
+
         $activityId = (int) ($after['activity'][0] ?? 0);
         $personId = (int) ($after['person'][0] ?? 0);
         $name = trim((string) ($after['name'] ?? ''));
 
-        if (($personId === 0) === ($name === '')) {
+        if ($touches('person', 'name') && ($personId === 0) === ($name === '')) {
             return new WP_Error('person_or_name', 'An assignment names exactly one of a person or a name.');
         }
 
-        if (array_key_exists('activity', $data) || $id === null) {
-            $activity = ntdst_data()->get(ActivityModel::POST_TYPE)->find($activityId, 'any');
-            if (is_wp_error($activity)) {
-                return new WP_Error('not_an_activity', 'An assignment belongs to an activity.');
-            }
+        if ($touches('activity') && is_wp_error($this->activities->find($activityId, 'any'))) {
+            return new WP_Error('not_an_activity', 'An assignment belongs to an activity.');
         }
 
-        if ($personId !== 0 && $this->duplicate($activityId, $personId, $id)) {
+        if ($touches('activity', 'person') && $personId !== 0 && $this->duplicate($activityId, $personId, $id)) {
             return new WP_Error('duplicate_assignment', 'This person is already on this activity.');
         }
 

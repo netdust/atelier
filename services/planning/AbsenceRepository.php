@@ -57,6 +57,7 @@ final class AbsenceRepository
             ->where('from', ['<=', $to])
             ->where('to', ['>=', $from])
             ->orderBy('from', 'ASC')
+            ->limit(-1)
             ->withMeta();
 
         if ($personId !== null) {
