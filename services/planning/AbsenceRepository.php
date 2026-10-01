@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Planning;
 
+use Atelier\Models\PersonModel;
 use WP_Error;
 use WP_Post;
 
@@ -12,6 +13,8 @@ defined('ABSPATH') || exit;
 /** The one place `absence` data is read or written. */
 final class AbsenceRepository
 {
+    private const TARGETS = ['person' => [PersonModel::POST_TYPE, 'not_a_person']];
+
     public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
     {
         return ntdst_data()->get(AbsenceModel::POST_TYPE)->find($id, $status);
@@ -26,6 +29,11 @@ final class AbsenceRepository
             return self::refused();
         }
 
+        $refused = RelationTargets::refuse($data, self::TARGETS);
+        if ($refused !== null) {
+            return $refused;
+        }
+
         return ntdst_data()->get(AbsenceModel::POST_TYPE)->create($data);
     }
 
@@ -33,6 +41,11 @@ final class AbsenceRepository
     public function update(int $id, array $data): WP_Post|WP_Error
     {
         $data = self::normalise($data);
+
+        $refused = RelationTargets::refuse($data, self::TARGETS);
+        if ($refused !== null) {
+            return $refused;
+        }
 
         if (array_key_exists('from', $data) || array_key_exists('to', $data)) {
             $existing = $this->find($id, 'any');

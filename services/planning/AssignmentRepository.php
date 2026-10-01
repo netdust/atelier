@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Planning;
 
+use Atelier\Models\PersonModel;
 use Atelier\Models\PersonRepository;
 use WP_Error;
 use WP_Post;
@@ -13,7 +14,7 @@ defined('ABSPATH') || exit;
 /**
  * The one place `assignment` data is read or written. The rules core's
  * per-field validators cannot hold live here: one of person or name, one
- * assignment per person per activity, an activity that is one.
+ * assignment per person per activity, an activity and a person that are one.
  */
 final class AssignmentRepository
 {
@@ -180,6 +181,11 @@ final class AssignmentRepository
 
         if ($touches('person', 'name') && ($personId === 0) === ($name === '')) {
             return new WP_Error('person_or_name', 'An assignment names exactly one of a person or a name.');
+        }
+
+        $wrongType = RelationTargets::refuse($data, ['person' => [PersonModel::POST_TYPE, 'not_a_person']]);
+        if ($wrongType !== null) {
+            return $wrongType;
         }
 
         if ($touches('activity') && is_wp_error($this->activities->find($activityId, 'any'))) {

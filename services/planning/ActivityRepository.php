@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Atelier\Planning;
 
+use Atelier\Models\OrganisationModel;
+use Atelier\Performance\PerformanceModel;
+use Atelier\Production\ProductionModel;
 use WP_Error;
 use WP_Post;
 
@@ -12,6 +15,12 @@ defined('ABSPATH') || exit;
 /** The one place `activity` data is read or written. */
 final class ActivityRepository
 {
+    private const TARGETS = [
+        'production'  => [ProductionModel::POST_TYPE, 'not_a_production'],
+        'performance' => [PerformanceModel::POST_TYPE, 'not_a_performance'],
+        'location'    => [OrganisationModel::POST_TYPE, 'not_a_location'],
+    ];
+
     public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
     {
         return ntdst_data()->get(ActivityModel::POST_TYPE)->find($id, $status);
@@ -27,6 +36,11 @@ final class ActivityRepository
             return self::titleRequired();
         }
 
+        $refused = RelationTargets::refuse($data, self::TARGETS);
+        if ($refused !== null) {
+            return $refused;
+        }
+
         return ntdst_data()->get(ActivityModel::POST_TYPE)->create($data);
     }
 
@@ -36,6 +50,11 @@ final class ActivityRepository
 
         if (array_key_exists('title', $data) && trim((string) $data['title']) === '') {
             return self::titleRequired();
+        }
+
+        $refused = RelationTargets::refuse($data, self::TARGETS);
+        if ($refused !== null) {
+            return $refused;
         }
 
         return ntdst_data()->get(ActivityModel::POST_TYPE)->update($id, $data);
