@@ -122,7 +122,7 @@ final class ProfileRepository
         return $contacts;
     }
 
-    /** Only http(s): a stored `javascript:` or a bare host never reaches a link or the schema's sameAs. */
+    /** Only http(s) with a host: `javascript:`, a bare host or `http:foo` never reaches a link or sameAs. */
     private static function social(array $fields): array
     {
         $links = [];
@@ -130,12 +130,21 @@ final class ProfileRepository
         foreach (self::SOCIAL as $key) {
             $url = is_string($fields[$key] ?? null) ? trim($fields[$key]) : '';
 
-            if (in_array(wp_parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+            if (self::isWebUrl($url)) {
                 $links[$key] = $url;
             }
         }
 
         return $links;
+    }
+
+    private static function isWebUrl(string $url): bool
+    {
+        $parts = wp_parse_url($url);
+
+        return is_array($parts)
+            && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            && ($parts['host'] ?? '') !== '';
     }
 
     /** Repeater rows with an attachment, as `[$media => int, $label => string]`; a row without one is dropped. */

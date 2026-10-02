@@ -101,6 +101,76 @@ final class ProfileService
         return $check;
     }
 
+    /** ntdst/baseline/schema/main_entity, inside wp_head: the Dutch profile fills baseline's Organization (R-1). */
+    public function fillEntity(array $entity): array
+    {
+        $profile = $this->dutchProfile();
+
+        return $profile === null ? $entity : array_merge($entity, self::organization($profile));
+    }
+
+    /** ntdst/baseline/schema/website: built from the unfiltered entity, so the page names one Organization. */
+    public function fillWebsite(array $website): array
+    {
+        if (!is_array($website['author'] ?? null)) {
+            return $website;
+        }
+
+        $website['author'] = $website['copyrightHolder'] = $this->fillEntity($website['author']);
+
+        return $website;
+    }
+
+    /** ntdst/baseline/seo/meta: the press photo, when the page brings no og:image of its own. */
+    public function fillOgImage(array $tags): array
+    {
+        foreach ($tags as $tag) {
+            if (is_string($tag) && str_contains($tag, 'property="og:image"')) {
+                return $tags;
+            }
+        }
+
+        $url = self::fileUrl($this->dutchProfile()['press_photo'] ?? null);
+
+        if ($url !== '') {
+            $tags[] = '<meta property="og:image" content="' . esc_url($url) . '">';
+        }
+
+        return $tags;
+    }
+
+    /** @return array<string, mixed> the profile's filled values as Organization properties; an empty one is left out */
+    private static function organization(array $profile): array
+    {
+        $filled = static fn(mixed $value): bool => $value !== '' && $value !== [];
+        $address = array_filter([
+            'streetAddress'   => $profile['address']['street'],
+            'postalCode'      => $profile['address']['postcode'],
+            'addressLocality' => $profile['address']['city'],
+            'addressCountry'  => $profile['address']['country'],
+        ], $filled);
+
+        return array_filter([
+            'name'        => $profile['name'],
+            'logo'        => self::fileUrl($profile['logo']),
+            'description' => wp_strip_all_tags($profile['bio_short']),
+            'sameAs'      => array_values($profile['social']),
+            'address'     => $address === [] ? [] : ['@type' => 'PostalAddress'] + $address,
+            'email'       => $profile['contacts'][0]['email'] ?? '',
+        ], $filled);
+    }
+
+    private static function fileUrl(?int $attachment): string
+    {
+        return $attachment === null ? '' : (string) wp_get_attachment_url($attachment);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function dutchProfile(): ?array
+    {
+        return ntdst_get(ProfileRepository::class)->current(ProfileRepository::translatedLanguage());
+    }
+
     /** A type Polylang does not translate has no copies, so nothing on it is a "+". */
     private function isPlus(): bool
     {
@@ -123,5 +193,8 @@ final class ProfileService
         add_action('load-toplevel_page_' . self::MENU_SLUG, [$this, 'open']);
         add_filter('pre_trash_post', [$this, 'keepDutch'], 10, 2);
         add_action('load-post-new.php', [$this, 'refuseSecond']);
+        add_filter('ntdst/baseline/schema/main_entity', [$this, 'fillEntity']);
+        add_filter('ntdst/baseline/schema/website', [$this, 'fillWebsite']);
+        add_filter('ntdst/baseline/seo/meta', [$this, 'fillOgImage']);
     }
 }
