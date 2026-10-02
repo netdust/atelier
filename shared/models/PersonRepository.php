@@ -14,9 +14,9 @@ defined('ABSPATH') || exit;
  */
 final class PersonRepository
 {
-    public function find(int $id): WP_Post|WP_Error
+    public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
     {
-        return ntdst_data()->get(PersonModel::POST_TYPE)->find($id);
+        return ntdst_data()->get(PersonModel::POST_TYPE)->find($id, $status);
     }
 
     public function create(array $data): WP_Post|WP_Error
