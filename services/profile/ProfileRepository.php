@@ -32,12 +32,10 @@ final class ProfileRepository
         return $post === null ? null : (int) $post->ID;
     }
 
-    private const SOCIAL = ['website', 'instagram', 'facebook', 'youtube', 'vimeo', 'linkedin'];
-
     /**
      * The published profile in `$lang` (null: Polylang's current language, else
-     * the default); a language without a published copy reads the Dutch record.
-     * Copies hold the Dutch facts through baseline's field_sync.
+     * the default): the Dutch record's linked copy, or the Dutch record when that
+     * language has no published copy. Copies hold the Dutch facts through baseline's field_sync.
      *
      * @return array<string, mixed>|null
      */
@@ -46,24 +44,31 @@ final class ProfileRepository
         $default = self::translatedLanguage();
 
         if ($default === null) {
-            return $this->shape($this->published(null));
+            return $this->shape($this->firstPublished());
+        }
+
+        $dutch = $this->dutchId();
+
+        if ($dutch === null) {
+            return null;
         }
 
         $lang ??= (function_exists('pll_current_language') ? pll_current_language() : null) ?: $default;
-        $post = $lang === $default ? null : $this->published($lang);
+        $copy = $lang === $default ? null : pll_get_post($dutch, $lang);
 
-        return $this->shape($post ?? $this->published($default));
+        return $this->shape(($copy ? $this->published((int) $copy) : null) ?? $this->published($dutch));
     }
 
-    private function published(?string $lang): ?WP_Post
+    private function firstPublished(): ?WP_Post
     {
-        $query = ntdst_data()->get(ProfileModel::POST_TYPE)->orderBy('ID', 'ASC');
+        return ntdst_data()->get(ProfileModel::POST_TYPE)->orderBy('ID', 'ASC')->first();
+    }
 
-        if ($lang !== null) {
-            $query->whereTax('language', $lang);
-        }
+    private function published(int $id): ?WP_Post
+    {
+        $post = ntdst_data()->get(ProfileModel::POST_TYPE)->find($id);
 
-        return $query->first();
+        return $post instanceof WP_Post ? $post : null;
     }
 
     /** @return array<string, mixed>|null */
@@ -75,7 +80,7 @@ final class ProfileRepository
 
         $f = (array) $post->fields;
         $text = static fn(string $key): string => is_scalar($f[$key] ?? null) ? trim((string) $f[$key]) : '';
-        $media = static fn(string $key): ?int => absint($f[$key] ?? 0) ?: null;
+        $media = static fn(string $key): ?int => self::attachment($f[$key] ?? 0);
 
         return [
             'id'                 => (int) $post->ID,
@@ -112,7 +117,8 @@ final class ProfileRepository
 
         foreach (is_array($rows) ? $rows : [] as $row) {
             $read = static fn(string $key): string => is_array($row) && is_scalar($row[$key] ?? null) ? trim((string) $row[$key]) : '';
-            $contact = ['role' => $read('role'), 'name' => $read('name'), 'email' => $read('email'), 'phone' => $read('phone')];
+            $email = $read('email');
+            $contact = ['role' => $read('role'), 'name' => $read('name'), 'email' => is_email($email) ? $email : '', 'phone' => $read('phone')];
 
             if ($contact['role'] !== '' && ($contact['email'] !== '' || $contact['phone'] !== '')) {
                 $contacts[] = $contact;
@@ -127,7 +133,7 @@ final class ProfileRepository
     {
         $links = [];
 
-        foreach (self::SOCIAL as $key) {
+        foreach (ProfileModel::SOCIAL as $key) {
             $url = is_string($fields[$key] ?? null) ? trim($fields[$key]) : '';
 
             if (self::isWebUrl($url)) {
@@ -153,14 +159,22 @@ final class ProfileRepository
         $kept = [];
 
         foreach (is_array($rows) ? $rows : [] as $row) {
-            $id = is_array($row) ? absint($row[$media] ?? 0) : 0;
+            $id = is_array($row) ? self::attachment($row[$media] ?? 0) : null;
 
-            if ($id > 0) {
+            if ($id !== null) {
                 $kept[] = [$media => $id, $label => is_scalar($row[$label] ?? null) ? trim((string) $row[$label]) : ''];
             }
         }
 
         return $kept;
+    }
+
+    /** An id read back only when it still names an attachment. */
+    private static function attachment(mixed $id): ?int
+    {
+        $id = absint($id);
+
+        return $id > 0 && get_post_type($id) === 'attachment' ? $id : null;
     }
 
     /** Published, in the default language; the title is the company name. */

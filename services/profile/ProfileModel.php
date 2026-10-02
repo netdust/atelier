@@ -19,6 +19,9 @@ final class ProfileModel
     public const POST_TYPE = 'company_profile';
     public const META_PREFIX = '_atelier_profile_';
 
+    /** The social links, in the order the tab shows them and the schema lists them. */
+    public const SOCIAL = ['website', 'instagram', 'facebook', 'youtube', 'vimeo', 'linkedin'];
+
     /** @param array{labels: array, groups?: array<string, string>} $config the service config after site overrides */
     public static function register(array $config): void
     {
@@ -54,7 +57,7 @@ final class ProfileModel
         'basic'   => ['Basic', ['legal_name', 'tagline', 'bio_short', 'bio_long']],
         'contact' => ['Contact', ['address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
         'images'  => ['Images', ['logo', 'press_photo', 'press_photo_credit']],
-        'social'  => ['Social', ['website', 'instagram', 'facebook', 'youtube', 'vimeo', 'linkedin']],
+        'social'  => ['Social', self::SOCIAL],
         'kit'     => ['Press kit', ['kit_public', 'kit_text', 'kit_photos', 'kit_documents']],
     ];
 
@@ -86,12 +89,7 @@ final class ProfileModel
             'press_photo'        => ['type' => 'image'],
             'press_photo_credit' => $fact('text'),
 
-            'website'   => $fact('url'),
-            'instagram' => $fact('url'),
-            'facebook'  => $fact('url'),
-            'youtube'   => $fact('url'),
-            'vimeo'     => $fact('url'),
-            'linkedin'  => $fact('url'),
+            ...array_fill_keys(self::SOCIAL, $fact('url')),
 
             'kit_public'    => ['type' => 'bool'],
             'kit_text'      => ['type' => 'html'],
