@@ -18,7 +18,7 @@ final class OrganisationModel
     public const ROLES = ['venue' => 'Venue', 'coproducer' => 'Co-producer', 'funder' => 'Funder', 'presenter' => 'Presenter'];
 
     /** Never in REST, never in the builder. */
-    public const PRIVATE = ['contacts', 'tech_contact'];
+    public const PRIVATE = ['contacts', 'tech_contact', 'notes'];
 
     public static function register(array $config): void
     {
@@ -42,6 +42,7 @@ final class OrganisationModel
             'website'      => ['type' => 'url'],
             'contacts'     => ['type' => 'textarea', 'translate' => false],
             'tech_contact' => ['type' => 'textarea', 'translate' => false],
+            'notes'        => ['type' => 'textarea', 'translate' => false, 'description' => 'Staff only: loading, parking, access'],
         ];
     }
 }
