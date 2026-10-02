@@ -11,12 +11,12 @@ defined('ABSPATH') || exit;
 
 /**
  * The company profile: one record per site, opened from one menu entry.
- * The record is created on the first visit by someone who may edit posts
- * (or by WP-CLI on deploy) — never on a front-end request.
+ * The record is created on the first visit by someone who may edit others'
+ * posts of the type (or by WP-CLI on deploy) — never on a front-end request.
  */
 final class ProfileService
 {
-    public const MENU_SLUG = 'company-profile';
+    private const MENU_SLUG = 'company-profile';
 
     private const DEFAULTS = [
         'labels' => ['name' => 'Profile', 'singular_name' => 'Profile'],
@@ -24,7 +24,10 @@ final class ProfileService
 
     private array $config;
 
-    public function __construct()
+    /** The Dutch profile, read once per request: `[$profile]`, null until read. */
+    private ?array $dutch = null;
+
+    public function __construct(private readonly ProfileRepository $repository)
     {
         $this->init();
     }
@@ -32,21 +35,29 @@ final class ProfileService
     /** The profile's id, created — published, in the default language — when none exists and the caller may. */
     public static function ensure(): ?int
     {
-        $repository = ntdst_get(ProfileRepository::class);
-        $id = $repository->dutchId();
+        $service = ntdst_get(self::class);
+        $id = $service->repository->dutchId();
 
         if ($id !== null) {
             return $id;
         }
 
-        if (!current_user_can('edit_posts') && !(defined('WP_CLI') && WP_CLI)) {
+        $cli = defined('WP_CLI') && WP_CLI;
+
+        if (!current_user_can(self::capability()) && !$cli) {
             return null;
         }
 
-        $created = $repository->createDutch(get_bloginfo('name'));
+        $created = $service->repository->createDutch(get_bloginfo('name'));
 
         if (is_wp_error($created)) {
-            ntdst_log('atelier')->error('company profile not created: ' . $created->get_error_message());
+            $reason = 'company profile not created: ' . $created->get_error_message();
+            ntdst_log('atelier')->error($reason);
+
+            // The deploy hook's only output: WP_CLI::error() prints the reason and exits 1.
+            if ($cli) {
+                \WP_CLI::error($reason);
+            }
 
             return null;
         }
@@ -54,25 +65,27 @@ final class ProfileService
         return $created;
     }
 
+    /** Editors and up: the record is the site's Organization, not one author's post. */
+    private static function capability(): string
+    {
+        return get_post_type_object(ProfileModel::POST_TYPE)?->cap->edit_others_posts ?? 'edit_others_posts';
+    }
+
     public function menu(): void
     {
         $label = $this->config['labels']['name'];
 
-        add_menu_page($label, $label, 'edit_posts', self::MENU_SLUG, '__return_null', 'dashicons-id-alt');
+        add_menu_page($label, $label, self::capability(), self::MENU_SLUG, '__return_null', 'dashicons-id-alt');
     }
 
-    /** The menu page's load hook: opens the record's edit screen. No nonce: an idempotent create, behind edit_posts. */
+    /** The menu page's load hook: opens the record's edit screen. No nonce: an idempotent create, behind the capability. */
     public function open(): void
     {
-        if (!current_user_can('edit_posts')) {
+        if (!current_user_can(self::capability())) {
             return;
         }
 
-        $id = self::ensure();
-
-        if ($id !== null) {
-            $this->redirectTo($id);
-        }
+        $this->redirectTo(self::ensure() ?? self::refuse());
     }
 
     /** load-post-new.php: a second profile is refused; Polylang's "+" still makes a copy. */
@@ -82,19 +95,18 @@ final class ProfileService
             return;
         }
 
-        $id = self::ensure();
-
-        if ($id === null) {
-            wp_die(esc_html__('The profile could not be opened.', 'atelier'), '', ['response' => 403]);
-        }
-
-        $this->redirectTo($id);
+        $this->redirectTo(self::ensure() ?? self::refuse());
     }
 
-    /** pre_trash_post: the Dutch record stays; its copies may go. */
+    private static function refuse(): never
+    {
+        wp_die(esc_html__('The profile could not be opened.', 'atelier'), '', ['response' => 403]);
+    }
+
+    /** pre_trash_post and pre_delete_post: the Dutch record stays; its copies may go. */
     public function keepDutch(mixed $check, WP_Post $post): mixed
     {
-        if ($post->post_type === ProfileModel::POST_TYPE && (int) $post->ID === ntdst_get(ProfileRepository::class)->dutchId()) {
+        if ($post->post_type === ProfileModel::POST_TYPE && (int) $post->ID === $this->repository->dutchId()) {
             return false;
         }
 
@@ -161,20 +173,9 @@ final class ProfileService
             'description' => wp_strip_all_tags($profile['bio_short']),
             'sameAs'      => array_values($profile['social']),
             'address'     => $address === [] ? [] : ['@type' => 'PostalAddress'] + $address,
-            'email'       => self::firstEmail($profile['contacts']),
+            // The company's own address; a contact row names a person and stays off the public page.
+            'email'       => $profile['email'],
         ], $filled);
-    }
-
-    /** A contact may be reached by phone alone; the first one with an email speaks for the company. */
-    private static function firstEmail(array $contacts): string
-    {
-        foreach ($contacts as $contact) {
-            if ($contact['email'] !== '') {
-                return $contact['email'];
-            }
-        }
-
-        return '';
     }
 
     private static function fileUrl(?int $attachment): string
@@ -185,7 +186,22 @@ final class ProfileService
     /** @return array<string, mixed>|null */
     private function dutchProfile(): ?array
     {
-        return ntdst_get(ProfileRepository::class)->current(ProfileRepository::translatedLanguage());
+        $this->dutch ??= [$this->repository->current(ProfileRepository::translatedLanguage())];
+
+        return $this->dutch[0];
+    }
+
+    /** A write to any profile record, or its meta, ends the remembered read. */
+    public function forget(int $id): void
+    {
+        if (get_post_type($id) === ProfileModel::POST_TYPE) {
+            $this->dutch = null;
+        }
+    }
+
+    public function forgetMeta(mixed $metaIds, int $id): void
+    {
+        $this->forget($id);
     }
 
     /** A type Polylang does not translate has no copies, so nothing on it is a "+". */
@@ -196,8 +212,7 @@ final class ProfileService
 
     private function redirectTo(int $id): never
     {
-        wp_safe_redirect(admin_url('post.php?post=' . $id . '&action=edit'));
-        exit;
+        ntdst_response()->redirect(admin_url('post.php?post=' . $id . '&action=edit'));
     }
 
     private function init(): void
@@ -209,10 +224,16 @@ final class ProfileService
         add_action('admin_menu', [$this, 'menu']);
         add_action('load-toplevel_page_' . self::MENU_SLUG, [$this, 'open']);
         add_filter('pre_trash_post', [$this, 'keepDutch'], 10, 2);
+        add_filter('pre_delete_post', [$this, 'keepDutch'], 10, 2);
         add_action('load-post-new.php', [$this, 'refuseSecond']);
         add_filter('ntdst/baseline/schema/main_entity', [$this, 'fillEntity']);
         add_filter('ntdst/baseline/schema/website', [$this, 'fillWebsite']);
         add_filter('ntdst/baseline/seo/meta', [$this, 'fillOgImage']);
+        add_action('save_post', [$this, 'forget']);
+        add_action('delete_post', [$this, 'forget']);
+        foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
+            add_action($hook, [$this, 'forgetMeta'], 10, 2);
+        }
 
         add_action('after_setup_theme', function (): void {
             if (!function_exists('YOOtheme\app')) {

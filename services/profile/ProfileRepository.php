@@ -89,6 +89,7 @@ final class ProfileRepository
             'tagline'            => $text('tagline'),
             'bio_short'          => $text('bio_short'),
             'bio_long'           => $text('bio_long'),
+            'email'              => is_email($text('email')) ? $text('email') : '',
             'address'            => [
                 'street'   => $text('address_street'),
                 'postcode' => $text('address_postcode'),
@@ -177,13 +178,13 @@ final class ProfileRepository
         return $id > 0 && get_post_type($id) === 'attachment' ? $id : null;
     }
 
-    /** Published, in the default language; the title is the company name. */
+    /** Published, in the default language; the title is the company name, and no user owns it. */
     public function createDutch(string $name): int|WP_Error
     {
         $lang = self::translatedLanguage();
 
         if ($lang === null) {
-            $post = ntdst_data()->get(ProfileModel::POST_TYPE)->create(['title' => $name, 'post_status' => 'publish']);
+            $post = ntdst_data()->get(ProfileModel::POST_TYPE)->create(['title' => $name, 'post_status' => 'publish', 'post_author' => 0]);
 
             return is_wp_error($post) ? $post : (int) $post->ID;
         }
@@ -191,6 +192,7 @@ final class ProfileRepository
         return SharedSlugs::withPendingLanguage($lang, static fn () => pll_insert_post([
             'post_type'   => ProfileModel::POST_TYPE,
             'post_status' => 'publish',
+            'post_author' => 0,
             'post_title'  => wp_slash($name),
         ], $lang));
     }

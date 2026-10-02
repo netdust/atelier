@@ -55,7 +55,7 @@ final class ProfileModel
 
     private const GROUPS = [
         'basic'   => ['Basic', ['legal_name', 'tagline', 'bio_short', 'bio_long']],
-        'contact' => ['Contact', ['address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
+        'contact' => ['Contact', ['email', 'address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
         'images'  => ['Images', ['logo', 'press_photo', 'press_photo_credit']],
         'social'  => ['Social', self::SOCIAL],
         'kit'     => ['Press kit', ['kit_public', 'kit_text', 'kit_photos', 'kit_documents']],
@@ -71,6 +71,8 @@ final class ProfileModel
             'bio_short'  => ['type' => 'textarea'],
             'bio_long'   => ['type' => 'html'],
 
+            // The company's address for the public schema; a contact row's email names a person.
+            'email'            => $fact('email'),
             'address_street'   => $fact('text'),
             'address_postcode' => $fact('text'),
             'address_city'     => $fact('text'),
