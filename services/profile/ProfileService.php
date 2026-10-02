@@ -124,6 +124,11 @@ final class ProfileService
     /** ntdst/baseline/seo/meta: the press photo, when the page brings no og:image of its own. */
     public function fillOgImage(array $tags): array
     {
+        // Read as SeoService reads it (default true): a site with og_tags off gets no lone og:image.
+        if (!(apply_filters('ntdst/baseline/seo/config', [])['og_tags'] ?? true)) {
+            return $tags;
+        }
+
         foreach ($tags as $tag) {
             if (is_string($tag) && str_contains($tag, 'property="og:image"')) {
                 return $tags;
@@ -156,8 +161,20 @@ final class ProfileService
             'description' => wp_strip_all_tags($profile['bio_short']),
             'sameAs'      => array_values($profile['social']),
             'address'     => $address === [] ? [] : ['@type' => 'PostalAddress'] + $address,
-            'email'       => $profile['contacts'][0]['email'] ?? '',
+            'email'       => self::firstEmail($profile['contacts']),
         ], $filled);
+    }
+
+    /** A contact may be reached by phone alone; the first one with an email speaks for the company. */
+    private static function firstEmail(array $contacts): string
+    {
+        foreach ($contacts as $contact) {
+            if ($contact['email'] !== '') {
+                return $contact['email'];
+            }
+        }
+
+        return '';
     }
 
     private static function fileUrl(?int $attachment): string
