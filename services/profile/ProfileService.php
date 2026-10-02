@@ -213,5 +213,14 @@ final class ProfileService
         add_filter('ntdst/baseline/schema/main_entity', [$this, 'fillEntity']);
         add_filter('ntdst/baseline/schema/website', [$this, 'fillWebsite']);
         add_filter('ntdst/baseline/seo/meta', [$this, 'fillOgImage']);
+
+        add_action('after_setup_theme', function (): void {
+            if (!function_exists('YOOtheme\app')) {
+                return;
+            }
+
+            require_once __DIR__ . '/yootheme.php';
+            register_profile_source($this->config);
+        }, 30);
     }
 }
