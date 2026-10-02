@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atelier\Planning;
 
 use Atelier\Models\PersonModel;
+use Atelier\Support\PrivateModel;
 
 defined('ABSPATH') || exit;
 

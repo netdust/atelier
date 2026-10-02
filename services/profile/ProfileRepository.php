@@ -19,7 +19,7 @@ final class ProfileRepository
     public function dutchId(): ?int
     {
         $query = ntdst_data()->get(ProfileModel::POST_TYPE)->where('post_status', 'any')->orderBy('ID', 'ASC');
-        $lang = self::language();
+        $lang = self::translatedLanguage();
 
         // Named explicitly: Polylang narrows an unqualified query to the current (or admin-filter) language.
         if ($lang !== null) {
@@ -34,7 +34,7 @@ final class ProfileRepository
     /** Published, in the default language; the title is the company name. */
     public function createDutch(string $name): int|WP_Error
     {
-        $lang = self::language();
+        $lang = self::translatedLanguage();
 
         if ($lang === null) {
             $post = ntdst_data()->get(ProfileModel::POST_TYPE)->create(['title' => $name, 'post_status' => 'publish']);
@@ -49,8 +49,8 @@ final class ProfileRepository
         ], $lang));
     }
 
-    /** The default language when Polylang translates the profile; otherwise the record has none. */
-    private static function language(): ?string
+    /** The default language when Polylang translates the profile; null when the record has no language (and no copies). */
+    public static function translatedLanguage(): ?string
     {
         if (!function_exists('pll_is_translated_post_type') || !pll_is_translated_post_type(ProfileModel::POST_TYPE)) {
             return null;

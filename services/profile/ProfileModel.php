@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
-use Atelier\Support\Labels;
+use Atelier\Support\PrivateModel;
 
 defined('ABSPATH') || exit;
 
@@ -19,38 +19,43 @@ final class ProfileModel
     public const POST_TYPE = 'company_profile';
     public const META_PREFIX = '_atelier_profile_';
 
-    /** @param array{labels: array} $config the service config after site overrides */
+    /** @param array{labels: array, groups?: array<string, string>} $config the service config after site overrides */
     public static function register(array $config): void
     {
-        ntdst_data()->register(self::POST_TYPE, [
-            'meta_prefix'         => self::META_PREFIX,
-            'label'               => $config['labels']['name'],
-            'labels'              => Labels::expand($config['labels']),
-            'public'              => false,
-            'publicly_queryable'  => false,
-            'show_ui'             => true,
-            'show_in_menu'        => false,
-            'show_in_rest'        => false,
-            'exclude_from_search' => true,
-            'rewrite'             => false,
-            'has_archive'         => false,
-            'supports'            => ['title'],
-            'fields'              => self::fields(),
-            'use_tabs'            => true,
-            'tabs_context'        => 'normal',
-            'tabs_priority'       => 'high',
-            'metabox_title'       => $config['labels']['singular_name'] ?? $config['labels']['name'],
+        PrivateModel::register(self::POST_TYPE, self::META_PREFIX, $config, self::fields(), [], [
+            'show_in_menu'  => false,
+            'supports'      => ['title'],
+            'use_tabs'      => true,
+            'tabs_context'  => 'normal',
+            'tabs_priority' => 'high',
+            'metabox_title' => $config['labels']['singular_name'] ?? $config['labels']['name'],
             // A field in no group has no input, and an admin save clears it.
-            'field_groups'        => self::GROUPS,
+            'field_groups'  => self::groups($config['groups'] ?? []),
         ]);
     }
 
+    /**
+     * The tabs; a site names them through `groups` (key => title), English otherwise.
+     *
+     * @param array<string, string> $titles
+     */
+    private static function groups(array $titles): array
+    {
+        $groups = [];
+
+        foreach (self::GROUPS as $key => [$title, $fields]) {
+            $groups[$key] = ['title' => (string) ($titles[$key] ?? $title), 'fields' => $fields];
+        }
+
+        return $groups;
+    }
+
     private const GROUPS = [
-        'basic'   => ['title' => 'Basic', 'fields' => ['legal_name', 'tagline', 'bio_short', 'bio_long']],
-        'contact' => ['title' => 'Contact', 'fields' => ['address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
-        'images'  => ['title' => 'Images', 'fields' => ['logo', 'press_photo', 'press_photo_credit']],
-        'social'  => ['title' => 'Social', 'fields' => ['website', 'instagram', 'facebook', 'youtube', 'vimeo', 'linkedin']],
-        'kit'     => ['title' => 'Press kit', 'fields' => ['kit_public', 'kit_text', 'kit_photos', 'kit_documents']],
+        'basic'   => ['Basic', ['legal_name', 'tagline', 'bio_short', 'bio_long']],
+        'contact' => ['Contact', ['address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
+        'images'  => ['Images', ['logo', 'press_photo', 'press_photo_credit']],
+        'social'  => ['Social', ['website', 'instagram', 'facebook', 'youtube', 'vimeo', 'linkedin']],
+        'kit'     => ['Press kit', ['kit_public', 'kit_text', 'kit_photos', 'kit_documents']],
     ];
 
     private static function fields(): array

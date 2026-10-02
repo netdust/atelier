@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atelier\Profile;
 
 use ntdst\baseline\services\polylang\Translation\PlusRequest;
+use WP_Post;
 
 defined('ABSPATH') || exit;
 
@@ -60,10 +61,10 @@ final class ProfileService
         add_menu_page($label, $label, 'edit_posts', self::MENU_SLUG, '__return_null', 'dashicons-id-alt');
     }
 
-    /** admin_init: the menu link opens the record's edit screen. No nonce: an idempotent create, behind edit_posts. */
+    /** The menu page's load hook: opens the record's edit screen. No nonce: an idempotent create, behind edit_posts. */
     public function open(): void
     {
-        if (($_GET['page'] ?? null) !== self::MENU_SLUG || !current_user_can('edit_posts')) {
+        if (!current_user_can('edit_posts')) {
             return;
         }
 
@@ -90,9 +91,20 @@ final class ProfileService
         $this->redirectTo($id);
     }
 
+    /** pre_trash_post: the Dutch record stays; its copies may go. */
+    public function keepDutch(mixed $check, WP_Post $post): mixed
+    {
+        if ($post->post_type === ProfileModel::POST_TYPE && (int) $post->ID === ntdst_get(ProfileRepository::class)->dutchId()) {
+            return false;
+        }
+
+        return $check;
+    }
+
+    /** A type Polylang does not translate has no copies, so nothing on it is a "+". */
     private function isPlus(): bool
     {
-        return function_exists('pll_default_language') && PlusRequest::fromGlobals(ProfileModel::POST_TYPE) !== null;
+        return ProfileRepository::translatedLanguage() !== null && PlusRequest::fromGlobals(ProfileModel::POST_TYPE) !== null;
     }
 
     private function redirectTo(int $id): never
@@ -108,7 +120,8 @@ final class ProfileService
         ProfileModel::register($this->config);
 
         add_action('admin_menu', [$this, 'menu']);
-        add_action('admin_init', [$this, 'open']);
+        add_action('load-toplevel_page_' . self::MENU_SLUG, [$this, 'open']);
+        add_filter('pre_trash_post', [$this, 'keepDutch'], 10, 2);
         add_action('load-post-new.php', [$this, 'refuseSecond']);
     }
 }

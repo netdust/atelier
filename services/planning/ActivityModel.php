@@ -7,6 +7,7 @@ namespace Atelier\Planning;
 use Atelier\Models\OrganisationModel;
 use Atelier\Performance\PerformanceModel;
 use Atelier\Production\ProductionModel;
+use Atelier\Support\PrivateModel;
 use Atelier\Support\Vocabulary;
 
 defined('ABSPATH') || exit;

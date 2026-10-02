@@ -2,15 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Atelier\Planning;
-
-use Atelier\Support\Labels;
-use Atelier\Support\LockedFields;
+namespace Atelier\Support;
 
 defined('ABSPATH') || exit;
 
 /**
- * The registration every planning record shares — PublicModel's counterpart:
+ * The registration every private atelier record shares — PublicModel's counterpart:
  * a wp-admin screen and nothing else. No permalink, no archive, not in
  * search, not in REST; a site relabels through its config, never the key.
  */
@@ -20,7 +17,7 @@ final class PrivateModel
      * @param array{labels: array} $config the service config after site overrides
      * @param array<string, array> $fields
      * @param list<string> $locked
-     * @param array<string, mixed> $args supports, menu_icon
+     * @param array<string, mixed> $args extra register args (supports, menu_icon, show_in_menu, tabs)
      */
     public static function register(string $postType, string $prefix, array $config, array $fields, array $locked, array $args = []): void
     {
