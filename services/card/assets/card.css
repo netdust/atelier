@@ -42,7 +42,7 @@ a { color: inherit; }
   font-size: clamp(15px, 4.6vw, 20px); line-height: 1.2; text-decoration: none;
   padding-block: 7px; margin-block: -3px; width: fit-content; overflow-wrap: anywhere;
 }
-.actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
 .btn {
   height: 54px; padding-inline: 18px;
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
@@ -59,7 +59,7 @@ a { color: inherit; }
 #share { position: relative; }
 #share[data-note]::after {
   content: attr(data-note);
-  position: absolute; bottom: calc(100% + 8px); left: 0;
+  position: absolute; bottom: calc(100% + 8px); right: 0;
   padding: 6px 8px; background: var(--ink); color: var(--paper);
   font-weight: 500; font-size: 11px; text-transform: none; white-space: nowrap;
 }

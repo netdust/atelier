@@ -15,6 +15,8 @@ class CardService
 {
     public const PATH = '/card';
 
+    private const NOINDEX = 'X-Robots-Tag: noindex, nofollow';
+
     private const DEFAULTS = [
         'labels' => [
             'front'     => 'Front',
@@ -48,20 +50,65 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders(['X-Robots-Tag: noindex, nofollow']);
+        $this->emitHeaders([self::NOINDEX]);
 
         return $template;
+    }
+
+    /** /card/{slug}/contact.vcf — the full vCard, saved as a file. */
+    public function streamVCard(array $params): ?false
+    {
+        return $this->streamRecord($params, false, 'attachment');
+    }
+
+    /** /card/{slug}/share.vcf — the compact vCard, inline so a phone offers "Add contact". */
+    public function streamShareVCard(array $params): ?false
+    {
+        return $this->streamRecord($params, true, 'inline');
+    }
+
+    /** null once the record is sent — core then ends the request; false refuses, as the card does. */
+    private function streamRecord(array $params, bool $compact, string $disposition): ?false
+    {
+        $card = $this->model->forSlug((string) ($params['slug'] ?? ''));
+
+        if ($card === null) {
+            return false;
+        }
+
+        $body = VCardBuilder::build($card, $compact);
+
+        // Not ntdst_response()->download(): it exits, and these seams are what the tests capture.
+        $this->emitHeaders([
+            ...\NTDST_Response::downloadHeaders(strlen($body), self::vcardFilename($card['name']), 'text/vcard; charset=utf-8', $disposition),
+            'Cache-Control: no-cache, must-revalidate, max-age=0',
+            self::NOINDEX,
+        ]);
+        $this->emitBody($body);
+
+        return null;
+    }
+
+    /** The stem is sanitised before `.vcf` is joined: sanitize_file_name() would mangle an inner extension. */
+    private static function vcardFilename(string $name): string
+    {
+        $stem = sanitize_file_name($name);
+        $filename = str_replace(["\r", "\n", "\0", '"'], '', sanitize_file_name(($stem === '' ? 'contact' : $stem) . '.vcf'));
+
+        return str_ends_with($filename, '.vcf') && $filename !== '.vcf' ? $filename : 'contact.vcf';
     }
 
     /** What the template needs beside the card: labels, its own URL, its assets and language. */
     private function page(array $card): array
     {
         return [
-            'labels' => $this->config['labels'],
-            'url'    => home_url(trailingslashit(self::PATH . '/' . $card['slug'])),
-            'lang'   => self::language(),
-            'css'    => $this->assetUrl('card.css'),
-            'js'     => $this->assetUrl('card.js'),
+            'labels'     => $this->config['labels'],
+            'url'        => home_url(trailingslashit(self::PATH . '/' . $card['slug'])),
+            'vcard'      => home_url(self::PATH . '/' . $card['slug'] . '/contact.vcf/'),
+            'vcard_name' => self::vcardFilename($card['name']),
+            'lang'       => self::language(),
+            'css'        => $this->assetUrl('card.css'),
+            'js'         => $this->assetUrl('card.js'),
         ];
     }
 
@@ -100,7 +147,10 @@ class CardService
         $this->config = $config;
 
         add_action('init', function (): void {
-            ntdst_pages()->path(self::PATH . '/:slug', fn(array $params) => $this->renderCard($params));
+            ntdst_pages()
+                ->path(self::PATH . '/:slug', fn(array $params) => $this->renderCard($params))
+                ->path(self::PATH . '/:slug/contact.vcf', fn(array $params) => $this->streamVCard($params))
+                ->path(self::PATH . '/:slug/share.vcf', fn(array $params) => $this->streamShareVCard($params));
         });
     }
 }

@@ -70,7 +70,10 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
         <?php endif; ?>
 
         <div class="actions">
-            <button class="btn btn--solid" id="share" type="button"><?php echo esc_html($label('share')); ?></button>
+            <a class="btn btn--solid" id="save" href="<?php echo esc_url((string) ($page['vcard'] ?? '')); ?>" download="<?php echo esc_attr((string) ($page['vcard_name'] ?? '')); ?>"><?php echo esc_html($label('save')); ?></a>
+            <button class="btn btn--icon" id="share" type="button" aria-label="<?php echo esc_attr($label('share')); ?>">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 12v8h14v-8"/></svg>
+            </button>
             <button class="btn btn--icon" id="flip" type="button" aria-label="<?php echo esc_attr($label('back')); ?>" aria-expanded="false" aria-controls="back">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></svg>
             </button>
