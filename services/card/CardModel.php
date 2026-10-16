@@ -15,6 +15,8 @@ defined('ABSPATH') || exit;
  */
 final class CardModel
 {
+    private const SHARE_URL_MAX_LENGTH = 300;
+
     public function __construct(
         private readonly PersonRepository $people,
         private readonly ProfileRepository $profiles,
@@ -41,6 +43,7 @@ final class CardModel
 
         [$given, $family] = self::split($name);
         $email = $text('card_email');
+        $shareUrl = $text('card_share_url');
 
         return [
             'slug'      => $person->post_name,
@@ -50,7 +53,7 @@ final class CardModel
             'title'     => $text('card_title'),
             'email'     => is_email($email) ? $email : '',
             'phone'     => $text('card_phone'),
-            'share_url' => $text('card_share_url'),
+            'share_url' => self::isShareableUrl($shareUrl) ? $shareUrl : '',
             'photo'     => get_the_post_thumbnail_url($person, 'large') ?: null,
             'company'   => $this->company(),
         ];
@@ -62,6 +65,21 @@ final class CardModel
         $parts = preg_split('/\s+/', $name, 2) ?: [''];
 
         return count($parts) === 2 ? [$parts[0], $parts[1]] : ['', $parts[0]];
+    }
+
+    /** http(s) with a host, at most 300, and already what esc_url_raw() makes of it — else no share link. */
+    private static function isShareableUrl(string $url): bool
+    {
+        if ($url === '' || strlen($url) > self::SHARE_URL_MAX_LENGTH) {
+            return false;
+        }
+
+        $parts = wp_parse_url($url);
+
+        return is_array($parts)
+            && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            && ($parts['host'] ?? '') !== ''
+            && esc_url_raw($url) === $url;
     }
 
     /** @return array{name: string, logo: ?string, url: string} */

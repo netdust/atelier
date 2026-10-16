@@ -41,7 +41,7 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
 <main
     class="card"
     id="card"
-    data-share-url="<?php echo esc_url((string) ($page['url'] ?? '')); ?>"
+    data-share-url="<?php echo esc_url((string) ($page['share'] ?? '')); ?>"
     data-share-title="<?php echo esc_attr($title); ?>"
     data-copied="<?php echo esc_attr($label('copy_link')); ?>"
 >
@@ -88,6 +88,11 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
         </div>
 
         <div class="back-mid">
+            <?php if (is_string($page['qr'] ?? null)) : ?>
+                <div class="qr" role="img" aria-label="<?php echo esc_attr($label('save')); ?>">
+                    <?php echo $page['qr']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the encoder's own SVG: module geometry, none of the payload's text. ?>
+                </div>
+            <?php endif; ?>
             <?php if ($logo !== '') : ?>
                 <img class="logo" src="<?php echo $logo; ?>" alt="<?php echo esc_attr($companyName); ?>">
             <?php else : ?>

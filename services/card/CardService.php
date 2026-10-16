@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Atelier\Card;
 
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -16,6 +21,11 @@ class CardService
     public const PATH = '/card';
 
     private const NOINDEX = 'X-Robots-Tag: noindex, nofollow';
+
+    /** SVG user units (CSS scales the code) and the QR spec's mandatory quiet zone. */
+    private const QR_SIZE = 300;
+
+    private const QR_MARGIN = 2;
 
     private const DEFAULTS = [
         'labels' => [
@@ -89,6 +99,28 @@ class CardService
         return null;
     }
 
+    /** What the QR on the back encodes: the compact vCard, so a phone camera offers "add contact". */
+    public static function qrPayload(array $card): string
+    {
+        return VCardBuilder::build($card, true);
+    }
+
+    /** The QR's inline <svg>, or null when the encoder throws — the back then shows no code. */
+    public static function qrSvg(string $payload): ?string
+    {
+        try {
+            $renderer = new ImageRenderer(new RendererStyle(self::QR_SIZE, self::QR_MARGIN), new SvgImageBackEnd());
+            $svg = (new Writer($renderer))->writeString($payload, 'UTF-8');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // The writer emits a standalone document; its XML prolog is invalid inside an HTML body.
+        $start = strpos($svg, '<svg');
+
+        return $start === false ? null : substr($svg, $start);
+    }
+
     /** The stem is sanitised before `.vcf` is joined: sanitize_file_name() would mangle an inner extension. */
     private static function vcardFilename(string $name): string
     {
@@ -98,12 +130,13 @@ class CardService
         return str_ends_with($filename, '.vcf') && $filename !== '.vcf' ? $filename : 'contact.vcf';
     }
 
-    /** What the template needs beside the card: labels, its own URL, its assets and language. */
+    /** What the template needs beside the card: labels, the share link and QR, its assets and language. */
     private function page(array $card): array
     {
         return [
             'labels'     => $this->config['labels'],
-            'url'        => home_url(trailingslashit(self::PATH . '/' . $card['slug'])),
+            'share'      => $card['share_url'] !== '' ? $card['share_url'] : home_url(trailingslashit(self::PATH . '/' . $card['slug'])),
+            'qr'         => self::qrSvg(self::qrPayload($card)),
             'vcard'      => home_url(self::PATH . '/' . $card['slug'] . '/contact.vcf/'),
             'vcard_name' => self::vcardFilename($card['name']),
             'lang'       => self::language(),
