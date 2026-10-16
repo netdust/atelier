@@ -18,7 +18,7 @@ $companyName = (string) ($company['name'] ?? '');
 $title = $companyName === '' ? $name : $name . ' · ' . $companyName;
 $email = (string) ($card['email'] ?? '');
 $phone = (string) ($card['phone'] ?? '');
-$dialable = (string) preg_replace('/[^0-9+]/', '', $phone);
+$dial = (string) ($card['dial'] ?? '');
 $photo = esc_url((string) ($card['photo'] ?? ''), ['https', 'http']);
 $logo = esc_url((string) ($company['logo'] ?? ''), ['https', 'http']);
 $companyUrl = esc_url((string) ($company['url'] ?? ''), ['https', 'http']);
@@ -67,13 +67,13 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
     <?php endif; ?>
 
     <footer class="foot">
-        <?php if ($email !== '' || $dialable !== '') : ?>
+        <?php if ($email !== '' || $dial !== '') : ?>
             <div class="contact">
                 <?php if ($email !== '') : ?>
                     <a href="<?php echo esc_url('mailto:' . $email, ['mailto']); ?>"><?php echo esc_html($email); ?></a>
                 <?php endif; ?>
-                <?php if ($dialable !== '') : ?>
-                    <a href="<?php echo esc_url('tel:' . $dialable, ['tel']); ?>"><?php echo esc_html($phone); ?></a>
+                <?php if ($dial !== '') : ?>
+                    <a href="<?php echo esc_url('tel:' . $dial, ['tel']); ?>"><?php echo esc_html($phone); ?></a>
                 <?php endif; ?>
             </div>
         <?php endif; ?>

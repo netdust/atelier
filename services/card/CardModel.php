@@ -49,6 +49,7 @@ final class CardModel
 
         [$given, $family] = self::split($name);
         $email = $text('card_email');
+        $phone = $text('card_phone');
         $shareUrl = $text('card_share_url');
 
         return [
@@ -58,7 +59,8 @@ final class CardModel
             'family'    => $family,
             'title'     => $text('card_title'),
             'email'     => is_email($email) ? $email : '',
-            'phone'     => $text('card_phone'),
+            'phone'     => $phone,
+            'dial'      => VCardBuilder::dialable($phone),
             'share_url' => self::isShareableUrl($shareUrl) ? $shareUrl : '',
             'photo'     => get_the_post_thumbnail_url($person, 'large') ?: null,
             'company'   => $this->company(),
