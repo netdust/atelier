@@ -6,6 +6,7 @@ namespace Atelier\Production;
 
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
+use Atelier\Support\DownloadCount;
 use Atelier\Support\PublicModel;
 use Atelier\Support\Vocabulary;
 
@@ -85,11 +86,7 @@ final class ProductionModel
         ];
     }
 
-    /**
-     * The press kit, as the profile's: the text translates, every cell and fact follows the Dutch record.
-     * The count is a `callback` field: it draws itself as text and the metabox save skips it, so an
-     * editor's save never writes back the count the screen was opened with. Only the kit writes it.
-     */
+    /** The press kit, as the profile's: the text translates, every cell and fact follows the Dutch record. */
     private static function kit(): array
     {
         $fact = static fn(string $type, string $label): array => ['type' => $type, 'label' => $label, 'translate' => false];
@@ -101,15 +98,8 @@ final class ProductionModel
             'kit_photos'         => ['type' => 'repeater', 'sub_fields' => ['image' => $fact('image', 'Image'), 'credit' => $fact('text', 'Credit')]],
             'kit_logos'          => $files,
             'kit_documents'      => $files,
-            'kit_download_count' => ['type' => 'callback', 'callback' => [self::class, 'renderCount']],
+            'kit_download_count' => DownloadCount::field(),
         ];
-    }
-
-    /** The count as its sibling fields are drawn, with no input to post. */
-    public static function renderCount(?\WP_Post $post, string $name, mixed $value): void
-    {
-        echo '<div class="ntdst-field"><label>' . esc_html(ucwords(str_replace('_', ' ', $name))) . '</label>';
-        echo '<div class="ntdst-readonly-value"><strong>' . esc_html((string) absint($value)) . '</strong></div></div>';
     }
 
     private static function people(string $role): array

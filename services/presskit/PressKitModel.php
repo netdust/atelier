@@ -6,19 +6,51 @@ namespace Atelier\PressKit;
 
 use Atelier\Production\ProductionModel;
 use Atelier\Production\ProductionRepository;
+use Atelier\Profile\ProfileModel;
+use Atelier\Profile\ProfileRepository;
 use Atelier\Support\Languages;
 use WP_Post;
 
 defined('ABSPATH') || exit;
 
 /**
- * A kit's view model. The text is the record's in the kit's language; the public switch and the
- * files are the Dutch record's, which its copies follow.
+ * A kit's view model, a production's or the company's. The text is the record's in the kit's
+ * language; the public switch and the files are the Dutch record's, which its copies follow.
  */
 final class PressKitModel
 {
-    public function __construct(private readonly ProductionRepository $productions)
+    public function __construct(
+        private readonly ProductionRepository $productions,
+        private readonly ProfileRepository $profiles,
+    ) {
+    }
+
+    /**
+     * The company's kit from its profile: the copy in `$lang`, or the Dutch record where that language
+     * has none. null until the Dutch profile is published.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function forCompany(string $lang): ?array
     {
+        $dutch = $this->profiles->current(Languages::defaultFor(ProfileModel::POST_TYPE));
+        $record = $this->profiles->current($lang);
+
+        if ($dutch === null || $record === null) {
+            return null;
+        }
+
+        return [
+            'type'      => 'company',
+            'id'        => $record['id'],
+            'dutch_id'  => $dutch['id'],
+            'title'     => $record['name'],
+            'text'      => $record['kit']['text'],
+            'photos'    => self::files($dutch['kit']['photos'], 'image', 'credit'),
+            'logos'     => [],
+            'documents' => self::files($dutch['kit']['documents'], 'file', 'name'),
+            'public'    => $dutch['kit']['public'],
+        ];
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
+use Atelier\Support\DownloadCount;
 use Atelier\Support\PrivateModel;
 
 defined('ABSPATH') || exit;
@@ -58,7 +59,7 @@ final class ProfileModel
         'contact' => ['Contact', ['email', 'address_street', 'address_postcode', 'address_city', 'address_country', 'contacts']],
         'images'  => ['Images', ['logo', 'press_photo', 'press_photo_credit']],
         'social'  => ['Social', self::SOCIAL],
-        'kit'     => ['Press kit', ['kit_public', 'kit_text', 'kit_photos', 'kit_documents']],
+        'kit'     => ['Press kit', ['kit_public', 'kit_text', 'kit_photos', 'kit_documents', 'kit_download_count']],
     ];
 
     private static function fields(): array
@@ -109,6 +110,7 @@ final class ProfileModel
                     'file' => $fact('file', ['label' => 'File']),
                 ],
             ],
+            'kit_download_count' => DownloadCount::field(),
         ];
     }
 }

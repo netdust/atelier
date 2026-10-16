@@ -10,9 +10,9 @@ use WP_Query;
 defined('ABSPATH') || exit;
 
 /**
- * A press kit per production at /{base}/{slug}/, in the language of its URL, rendered by the site's
- * builder template for kits. Every refusal is the site's own 404, so a kit's existence and its public
- * state are never told apart.
+ * A press kit per production at /{base}/{slug}/ and the company's at /{base}/, in the language of its
+ * URL, rendered by the site's builder template for kits. Every refusal is the site's own 404, so a
+ * kit's existence and its public state are never told apart.
  */
 class PressKitService
 {
@@ -51,11 +51,11 @@ class PressKitService
         return ['name' => 'presskit'];
     }
 
-    /** A production's kit: the theme's page template, where the builder renders the kit template; false refuses. */
-    public function renderProduction(): string|false
+    /** A kit page: the theme's page template, where the builder renders the kit template; false refuses. */
+    public function render(): string|false
     {
         $decision = $this->decision();
-        $page = \NTDST_Template_Loader::locate('page');
+        $page = $this->pageTemplate();
 
         if ($decision === null || !$decision['admitted'] || $page === null) {
             return false;
@@ -144,7 +144,7 @@ class PressKitService
             $params = str_contains($tail, ':slug') ? ['slug' => $slug] : [];
 
             if (($params === [] || $slug !== '') && $this->url($tail, $params) === $requested) {
-                $kit = $route === 'production' ? $this->productionKit($slug) : null;
+                $kit = $this->kit($route, $params);
 
                 return ['route' => $route, 'kit' => $kit, 'admitted' => $kit !== null && $this->gate($kit)];
             }
@@ -153,15 +153,31 @@ class PressKitService
         return null;
     }
 
-    /** @return array<string, mixed>|null the kit in this request's language, with its own URLs */
-    private function productionKit(string $slug): ?array
+    /**
+     * The page route's kit in this request's language, with its own URLs; null on a download route.
+     *
+     * @param array<string, string> $params
+     * @return array<string, mixed>|null
+     */
+    private function kit(string $route, array $params): ?array
     {
-        $kit = $this->model->forProduction($slug, (string) ntdst_pages()->language());
+        $lang = (string) ntdst_pages()->language();
+        $kit = match ($route) {
+            'company'    => $this->model->forCompany($lang),
+            'production' => $this->model->forProduction($params['slug'], $lang),
+            default      => null,
+        };
 
         return $kit === null ? null : $kit + [
-            'url'          => $this->url(self::ROUTES['production'], ['slug' => $slug]),
-            'download_url' => $this->url(self::ROUTES['production_download'], ['slug' => $slug]),
+            'url'          => $this->url(self::ROUTES[$route], $params),
+            'download_url' => $this->url(self::ROUTES[$route . '_download'], $params),
         ];
+    }
+
+    /** The theme's page template; null when the theme has none, and the kit refuses. */
+    protected function pageTemplate(): ?string
+    {
+        return \NTDST_Template_Loader::locate('page');
     }
 
     /** @return string|array<string, string> the route pattern, one per language when the base is */
@@ -193,8 +209,8 @@ class PressKitService
     }
 
     /**
-     * One init callback, in ROUTES order: the company kit and the downloads refuse until they are built,
-     * so their rules already sit where the order needs them.
+     * One init callback, in ROUTES order: the downloads refuse until they are built, so their rules
+     * already sit where the order needs them.
      */
     private function init(): void
     {
@@ -202,9 +218,9 @@ class PressKitService
 
         add_action('init', function (): void {
             ntdst_pages()
-                ->path($this->paths(self::ROUTES['company']), static fn(): bool => false)
+                ->path($this->paths(self::ROUTES['company']), fn(): string|false => $this->render())
                 ->path($this->paths(self::ROUTES['company_download']), static fn(): bool => false)
-                ->path($this->paths(self::ROUTES['production']), fn(): string|false => $this->renderProduction())
+                ->path($this->paths(self::ROUTES['production']), fn(): string|false => $this->render())
                 ->path($this->paths(self::ROUTES['production_download']), static fn(): bool => false);
         });
 

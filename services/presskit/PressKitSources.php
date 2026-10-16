@@ -109,6 +109,7 @@ final class PressKitSources
         $named = static fn(array $file): array => ['name' => esc_html($file['name']), 'url' => esc_url($file['url'])];
 
         return [
+            'type'      => $kit['type'],
             'id'        => $kit['id'],
             'title'     => esc_html($kit['title']),
             'text'      => wp_kses_post($kit['text']),
@@ -118,9 +119,12 @@ final class PressKitSources
         ];
     }
 
-    /** The production in the kit's language, as YOOtheme's `Production` fields read it. */
+    /**
+     * The production in the kit's language, as YOOtheme's `Production` fields read it. None on the
+     * company's kit: the template's production facts render empty there, and YOOtheme drops them.
+     */
     public static function production(array $kit): ?WP_Post
     {
-        return get_post((int) $kit['id']);
+        return $kit['type'] === 'production' ? get_post((int) $kit['id']) : null;
     }
 }
