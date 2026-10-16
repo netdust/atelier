@@ -27,16 +27,19 @@
 
   const $ = (id) => document.getElementById(id);
 
+  const installed = window.matchMedia('(display-mode: standalone)').matches;
+  const chosen = remembered.get() === card.dataset.slug;
+
+  // Offline only for the phone that chose this card, or the installed app: a visitor keeps nothing.
   // The route sends Service-Worker-Allowed for this scope; the option is what claims it.
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && (installed || chosen)) {
     navigator.serviceWorker.register(card.dataset.worker, { scope: card.dataset.scope }).catch(() => {});
   }
 
   // Only on the phone that chose this card: anyone the card was shared with has nothing to undo.
   // Not in the installed app: /card/ is outside its scope, and the app is that person's card.
   const notYou = $('not-you');
-  const installed = window.matchMedia('(display-mode: standalone)').matches;
-  if (notYou && !installed && remembered.get() === card.dataset.slug) {
+  if (notYou && !installed && chosen) {
     notYou.hidden = false;
     notYou.addEventListener('click', () => remembered.forget());
   }
