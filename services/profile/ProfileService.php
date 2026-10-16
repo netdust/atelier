@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
+use Atelier\Support\Languages;
 use ntdst\baseline\services\polylang\Translation\PlusRequest;
 use WP_Post;
 
@@ -186,7 +187,7 @@ final class ProfileService
     /** @return array<string, mixed>|null */
     private function dutchProfile(): ?array
     {
-        $this->dutch ??= [$this->repository->current(ProfileRepository::translatedLanguage())];
+        $this->dutch ??= [$this->repository->current(Languages::defaultFor(ProfileModel::POST_TYPE))];
 
         return $this->dutch[0];
     }
@@ -207,7 +208,7 @@ final class ProfileService
     /** A type Polylang does not translate has no copies, so nothing on it is a "+". */
     private function isPlus(): bool
     {
-        return ProfileRepository::translatedLanguage() !== null && PlusRequest::fromGlobals(ProfileModel::POST_TYPE) !== null;
+        return Languages::defaultFor(ProfileModel::POST_TYPE) !== null && PlusRequest::fromGlobals(ProfileModel::POST_TYPE) !== null;
     }
 
     private function redirectTo(int $id): never

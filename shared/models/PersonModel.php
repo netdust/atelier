@@ -35,6 +35,12 @@ final class PersonModel
             'phone'     => ['type' => 'text', 'translate' => false],
             'wp_user'   => ['type' => 'int'],
             'dietary'   => ['type' => 'textarea', 'translate' => false],
+
+            // The business card's own contact, apart from the private email and phone.
+            'card_title'     => ['type' => 'text'],
+            'card_email'     => ['type' => 'email', 'translate' => false],
+            'card_phone'     => ['type' => 'text', 'translate' => false],
+            'card_share_url' => ['type' => 'url', 'translate' => false],
         ];
     }
 }
