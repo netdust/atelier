@@ -21,7 +21,7 @@ final class CardModel
     ) {
     }
 
-    /** @return array<string, mixed>|null null unless a published Dutch core-team person has the slug */
+    /** @return array<string, mixed>|null null unless a published, named, Dutch core-team person has the slug */
     public function forSlug(string $slug): ?array
     {
         $slug = sanitize_title($slug);
@@ -34,6 +34,11 @@ final class CardModel
         $f = (array) $person->fields;
         $text = static fn(string $key): string => is_scalar($f[$key] ?? null) ? trim((string) $f[$key]) : '';
         $name = trim((string) $person->post_title);
+
+        if ($name === '') {
+            return null;
+        }
+
         [$given, $family] = self::split($name);
         $email = $text('card_email');
 
