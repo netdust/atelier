@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Atelier\Card;
 
 use Atelier\Models\PersonRepository;
+use Atelier\Profile\ProfileModel;
 use Atelier\Profile\ProfileRepository;
+use Atelier\Support\Languages;
+use Atelier\Support\WebUrl;
 
 defined('ABSPATH') || exit;
 
@@ -87,25 +90,16 @@ final class CardModel
         return count($parts) === 2 ? [$parts[0], $parts[1]] : ['', $parts[0]];
     }
 
-    /** http(s) with a host, at most 300, and already what esc_url_raw() makes of it — else no share link. */
+    /** A web URL, at most 300, and already what esc_url_raw() makes of it — else no share link. */
     private static function isShareableUrl(string $url): bool
     {
-        if ($url === '' || strlen($url) > self::SHARE_URL_MAX_LENGTH) {
-            return false;
-        }
-
-        $parts = wp_parse_url($url);
-
-        return is_array($parts)
-            && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
-            && ($parts['host'] ?? '') !== ''
-            && esc_url_raw($url) === $url;
+        return strlen($url) <= self::SHARE_URL_MAX_LENGTH && WebUrl::is($url) && esc_url_raw($url) === $url;
     }
 
     /** @return array{name: string, logo: ?string, url: string} */
     public function company(): array
     {
-        $profile = $this->profiles->current(ProfileRepository::translatedLanguage());
+        $profile = $this->profiles->current(Languages::defaultFor(ProfileModel::POST_TYPE));
         $logo = $profile['logo'] ?? null;
 
         return [

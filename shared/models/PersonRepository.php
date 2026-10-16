@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Models;
 
+use Atelier\Support\Languages;
 use WP_Error;
 use WP_Post;
 
@@ -27,7 +28,7 @@ final class PersonRepository
     public function findBySlug(string $slug): ?WP_Post
     {
         $holders = ntdst_data()->get(PersonModel::POST_TYPE)->where('post_name', $slug)->where('post_status', 'publish')->all();
-        $lang = self::defaultLanguage();
+        $lang = Languages::defaultFor(PersonModel::POST_TYPE);
 
         foreach ($holders as $row) {
             if ($lang === null || pll_get_post_language($row['id']) === $lang) {
@@ -49,7 +50,7 @@ final class PersonRepository
     public function coreTeam(): array
     {
         $query = ntdst_data()->get(PersonModel::POST_TYPE)->where('core_team', '1')->where('post_status', 'publish')->orderBy('post_title', 'ASC');
-        $lang = self::defaultLanguage();
+        $lang = Languages::defaultFor(PersonModel::POST_TYPE);
 
         if ($lang !== null) {
             $query->whereTax('language', $lang);
@@ -66,11 +67,5 @@ final class PersonRepository
     public function update(int $id, array $data): WP_Post|WP_Error
     {
         return ntdst_data()->get(PersonModel::POST_TYPE)->update($id, $data);
-    }
-
-    /** The default language when Polylang translates people; null when it does not. */
-    private static function defaultLanguage(): ?string
-    {
-        return function_exists('pll_is_translated_post_type') && pll_is_translated_post_type(PersonModel::POST_TYPE) ? (pll_default_language() ?: null) : null;
     }
 }

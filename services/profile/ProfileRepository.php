@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
+use Atelier\Support\Languages;
+use Atelier\Support\WebUrl;
 use ntdst\baseline\services\polylang\SharedSlugs;
 use WP_Error;
 use WP_Post;
@@ -20,7 +22,7 @@ final class ProfileRepository
     public function dutchId(): ?int
     {
         $query = ntdst_data()->get(ProfileModel::POST_TYPE)->where('post_status', 'any')->orderBy('ID', 'ASC');
-        $lang = self::translatedLanguage();
+        $lang = Languages::defaultFor(ProfileModel::POST_TYPE);
 
         // Named explicitly: Polylang narrows an unqualified query to the current (or admin-filter) language.
         if ($lang !== null) {
@@ -41,7 +43,7 @@ final class ProfileRepository
      */
     public function current(?string $lang = null): ?array
     {
-        $default = self::translatedLanguage();
+        $default = Languages::defaultFor(ProfileModel::POST_TYPE);
 
         if ($default === null) {
             return $this->shape($this->firstPublished());
@@ -137,21 +139,12 @@ final class ProfileRepository
         foreach (ProfileModel::SOCIAL as $key) {
             $url = is_string($fields[$key] ?? null) ? trim($fields[$key]) : '';
 
-            if (self::isWebUrl($url)) {
+            if (WebUrl::is($url)) {
                 $links[$key] = $url;
             }
         }
 
         return $links;
-    }
-
-    private static function isWebUrl(string $url): bool
-    {
-        $parts = wp_parse_url($url);
-
-        return is_array($parts)
-            && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
-            && ($parts['host'] ?? '') !== '';
     }
 
     /** Repeater rows with an attachment, as `[$media => int, $label => string]`; a row without one is dropped. */
@@ -181,7 +174,7 @@ final class ProfileRepository
     /** Published, in the default language; the title is the company name, and no user owns it. */
     public function createDutch(string $name): int|WP_Error
     {
-        $lang = self::translatedLanguage();
+        $lang = Languages::defaultFor(ProfileModel::POST_TYPE);
 
         if ($lang === null) {
             $post = ntdst_data()->get(ProfileModel::POST_TYPE)->create(['title' => $name, 'post_status' => 'publish', 'post_author' => 0]);
@@ -195,17 +188,5 @@ final class ProfileRepository
             'post_author' => 0,
             'post_title'  => wp_slash($name),
         ], $lang));
-    }
-
-    /** The default language when Polylang translates the profile; null when the record has no language (and no copies). */
-    public static function translatedLanguage(): ?string
-    {
-        if (!function_exists('pll_is_translated_post_type') || !pll_is_translated_post_type(ProfileModel::POST_TYPE)) {
-            return null;
-        }
-
-        $lang = pll_default_language();
-
-        return is_string($lang) && $lang !== '' ? $lang : null;
     }
 }
