@@ -92,6 +92,8 @@ a { color: inherit; }
   transition: opacity .25s, visibility 0s .25s;
 }
 .is-back .back { opacity: 1; visibility: visible; transition: opacity .35s .6s, visibility 0s; }
+/* The blots grow from the bottom right and never reach a tall screen's top-left corner; the back carries the ink itself. */
+.is-back .back { background: var(--ink); }
 .back .micro { opacity: .7; }
 .back-top { width: 100%; }
 .back-mid { align-self: center; width: 100%; display: grid; justify-items: center; gap: 18px; text-align: center; }
