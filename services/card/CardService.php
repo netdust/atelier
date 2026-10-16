@@ -23,8 +23,9 @@ class CardService
 
     private const NOINDEX = 'X-Robots-Tag: noindex, nofollow';
 
-    /** Revalidated every time: a worker's network-first fetch and the chooser must never see an hour-old copy. */
-    private const NO_CACHE = 'Cache-Control: no-cache';
+    /** The two standalone pages load only their own same-origin files, and the QR is inline SVG. */
+    private const CSP = "Content-Security-Policy: default-src 'self'; img-src 'self' data:; base-uri 'none'; "
+        . "form-action 'none'; frame-ancestors 'none'";
 
     /** The card's paper (card.css --paper): the installed app's splash and bars. */
     private const PAPER = '#f4f4f2';
@@ -81,7 +82,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, self::NO_CACHE]);
+        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
 
         return $template;
     }
@@ -101,7 +102,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, self::NO_CACHE]);
+        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
 
         return $template;
     }
@@ -132,7 +133,7 @@ class CardService
         // Not ntdst_response()->download(): it exits, and these seams are what the tests capture.
         $this->emitHeaders([
             ...\NTDST_Response::downloadHeaders(strlen($body), self::vcardFilename($card['name']), 'text/vcard; charset=utf-8', $disposition),
-            self::NO_CACHE,
+            ...self::noCache(),
             self::NOINDEX,
         ]);
         $this->emitBody($body);
@@ -330,15 +331,36 @@ class CardService
         $this->emitHeaders([
             'Content-Type: ' . $type,
             'Content-Length: ' . strlen($body),
-            self::NO_CACHE,
-            'X-Content-Type-Options: nosniff',
+            ...self::noCache(),
             self::NOINDEX,
             ...$headers,
         ]);
         $this->emitBody($body);
     }
 
-    /** @param list<string> $headers complete header lines */
+    /**
+     * WordPress's own no-cache set, so a worker's network-first fetch and the chooser never see an hour-old copy.
+     *
+     * @return list<string>
+     */
+    private static function noCache(): array
+    {
+        $lines = [];
+
+        // Last-Modified arrives as false, WordPress's "remove it": nothing on these routes sends one.
+        foreach (array_filter(wp_get_nocache_headers()) as $name => $value) {
+            $lines[] = $name . ': ' . $value;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Each line replaces a header of its name. Baseline's cache_headers and core's route dispatcher both run on
+     * template_redirect at 10, baseline registered first, so its public max-age and Expires are the ones replaced.
+     *
+     * @param list<string> $headers complete header lines
+     */
     protected function emitHeaders(array $headers): void
     {
         foreach ($headers as $header) {
