@@ -37,10 +37,11 @@ class CardService
         'icon-maskable-512.png' => [512, 'maskable'],
     ];
 
-    /** SVG user units (CSS scales the code) and the QR spec's mandatory quiet zone. */
+    /** SVG user units; CSS scales the code. */
     private const QR_SIZE = 300;
 
-    private const QR_MARGIN = 2;
+    /** ISO/IEC 18004's quiet zone of four modules: on the dark back the paper drawn here is the only one. */
+    private const QR_MARGIN = 4;
 
     private const DEFAULTS = [
         'labels' => [
@@ -195,14 +196,8 @@ class CardService
         return null;
     }
 
-    /** What the QR on the back encodes: the compact vCard, so a phone camera offers "add contact". */
-    public static function qrPayload(array $card): string
-    {
-        return VCardBuilder::build($card, true);
-    }
-
     /** The QR's inline <svg>, or null when the encoder throws — the back then shows no code. */
-    public static function qrSvg(string $payload): ?string
+    private static function qrSvg(string $payload): ?string
     {
         try {
             $renderer = new ImageRenderer(new RendererStyle(self::QR_SIZE, self::QR_MARGIN), new SvgImageBackEnd());
@@ -226,13 +221,17 @@ class CardService
         return str_ends_with($filename, '.vcf') && $filename !== '.vcf' ? $filename : 'contact.vcf';
     }
 
-    /** What the template needs beside the card: labels, the share link and QR, the install, its assets and language. */
+    /**
+     * What the template needs beside the card: labels, the share link, the QR — the compact vCard, so a phone
+     * camera offers "add contact", and a tap on it opens that record — the install, its assets and language.
+     */
     private function page(array $card): array
     {
         return [
             'labels'     => $this->config['labels'],
             'share'      => $card['share_url'] !== '' ? $card['share_url'] : self::url($card['slug']),
-            'qr'         => self::qrSvg(self::qrPayload($card)),
+            'qr'         => self::qrSvg(VCardBuilder::build($card, true)),
+            'qr_vcard'   => self::url($card['slug'], 'share.vcf'),
             'vcard'      => self::url($card['slug'], 'contact.vcf'),
             'vcard_name' => self::vcardFilename($card['name']),
             'manifest'   => self::url($card['slug'], 'manifest.webmanifest'),

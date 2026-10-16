@@ -98,9 +98,9 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
 
         <div class="back-mid">
             <?php if (is_string($page['qr'] ?? null)) : ?>
-                <div class="qr" role="img" aria-label="<?php echo esc_attr($label('save')); ?>">
+                <a class="qr" href="<?php echo esc_url((string) ($page['qr_vcard'] ?? '')); ?>" aria-label="<?php echo esc_attr($label('save')); ?>">
                     <?php echo $page['qr']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the encoder's own SVG: module geometry, none of the payload's text. ?>
-                </div>
+                </a>
             <?php endif; ?>
             <?php if ($logo !== '') : ?>
                 <img class="logo" src="<?php echo $logo; ?>" alt="<?php echo esc_attr($companyName); ?>">
