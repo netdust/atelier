@@ -26,11 +26,14 @@ final class CardModel
     ) {
     }
 
-    /** @return array<string, mixed>|null null unless a published, named, Dutch core-team person has the slug */
+    /**
+     * Only the canonical slug: `/card/JO-ROETS/` or `/card/jo-roets./` is refused like any unknown one.
+     *
+     * @return array<string, mixed>|null null unless a published, named, Dutch core-team person has the slug
+     */
     public function forSlug(string $slug): ?array
     {
-        $slug = sanitize_title($slug);
-        $person = $slug === '' ? null : $this->people->findBySlug($slug);
+        $person = $slug === '' || sanitize_title($slug) !== $slug ? null : $this->people->findBySlug($slug);
 
         if ($person === null || empty($person->fields['core_team'])) {
             return null;
