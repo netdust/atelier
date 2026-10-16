@@ -27,7 +27,7 @@ final class PersonRepository
     public function findBySlug(string $slug): ?WP_Post
     {
         $holders = ntdst_data()->get(PersonModel::POST_TYPE)->where('post_name', $slug)->where('post_status', 'publish')->all();
-        $lang = function_exists('pll_is_translated_post_type') && pll_is_translated_post_type(PersonModel::POST_TYPE) ? pll_default_language() : null;
+        $lang = self::defaultLanguage();
 
         foreach ($holders as $row) {
             if ($lang === null || pll_get_post_language($row['id']) === $lang) {
@@ -40,6 +40,24 @@ final class PersonRepository
         return null;
     }
 
+    /**
+     * The published core team in the default language, by name. Named explicitly:
+     * Polylang narrows an unqualified query to the current language.
+     *
+     * @return list<array<string, mixed>> the chain's rows
+     */
+    public function coreTeam(): array
+    {
+        $query = ntdst_data()->get(PersonModel::POST_TYPE)->where('core_team', '1')->where('post_status', 'publish')->orderBy('post_title', 'ASC');
+        $lang = self::defaultLanguage();
+
+        if ($lang !== null) {
+            $query->whereTax('language', $lang);
+        }
+
+        return $query->all();
+    }
+
     public function create(array $data): WP_Post|WP_Error
     {
         return ntdst_data()->get(PersonModel::POST_TYPE)->create($data);
@@ -48,5 +66,11 @@ final class PersonRepository
     public function update(int $id, array $data): WP_Post|WP_Error
     {
         return ntdst_data()->get(PersonModel::POST_TYPE)->update($id, $data);
+    }
+
+    /** The default language when Polylang translates people; null when it does not. */
+    private static function defaultLanguage(): ?string
+    {
+        return function_exists('pll_is_translated_post_type') && pll_is_translated_post_type(PersonModel::POST_TYPE) ? (pll_default_language() ?: null) : null;
     }
 }

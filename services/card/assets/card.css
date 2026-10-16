@@ -31,6 +31,8 @@ a { color: inherit; }
 .head { position: relative; z-index: 2; padding: calc(env(safe-area-inset-top) + 22px) var(--gutter) 16px; }
 .name { font-weight: 800; font-size: clamp(32px, 10vw, 46px); line-height: .95; overflow-wrap: anywhere; }
 .head .micro { display: block; margin-top: 10px; }
+.head .not-you { width: fit-content; padding-block: 6px; margin-block: 4px -6px; text-decoration: underline; text-underline-offset: 3px; }
+.not-you[hidden] { display: none; }
 
 .photo { position: relative; z-index: 1; overflow: hidden; }
 .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; pointer-events: none; }
@@ -104,6 +106,24 @@ a { color: inherit; }
 .company { font-weight: 800; font-size: clamp(22px, 7vw, 32px); }
 .back .btn { border-color: var(--paper); width: 100%; }
 .back .btn:active { background: var(--paper); color: var(--ink); }
+
+/* ---- the chooser at /card/: a list that scrolls, unlike the card ---- */
+.is-chooser, .is-chooser body { height: auto; overflow: auto; background: var(--paper); }
+.chooser {
+  max-width: 440px; margin-inline: auto; min-height: 100svh;
+  padding: calc(env(safe-area-inset-top) + 22px) var(--gutter) calc(env(safe-area-inset-bottom) + 22px);
+}
+.chooser .name { margin-bottom: 22px; }
+.team { list-style: none; border-top: 1px solid rgb(17 17 16 / .15); }
+.team li { border-bottom: 1px solid rgb(17 17 16 / .15); }
+.team a {
+  display: flex; align-items: center; gap: 14px; min-height: 76px; padding-block: 10px;
+  font-weight: 700; font-size: clamp(17px, 5vw, 20px); text-decoration: none; overflow-wrap: anywhere;
+}
+.team img, .team .initial { flex: none; width: 56px; height: 56px; border-radius: 50%; }
+.team img { object-fit: cover; }
+.team .initial { display: grid; place-items: center; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 22px; }
+.team a:active { opacity: .6; }
 
 @media (max-width: 360px) {
   :root { --gutter: 18px; }

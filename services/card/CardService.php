@@ -13,14 +13,25 @@ defined('ABSPATH') || exit;
 
 /**
  * A business card per core-team member at /card/{slug}/ — a standalone page
- * outside the theme, harvested from daan. Any other slug is refused alike,
- * so the 404 never tells whether a person exists.
+ * outside the theme, harvested from daan, installable as that person's app.
+ * /card/ is the chooser. Any other slug is refused alike, so the 404 never
+ * tells whether a person exists.
  */
 class CardService
 {
     public const PATH = '/card';
 
     private const NOINDEX = 'X-Robots-Tag: noindex, nofollow';
+
+    /** The card's paper (card.css --paper): the installed app's splash and bars. */
+    private const PAPER = '#f4f4f2';
+
+    /** R-3: atelier's neutral icons, for a site without a Site Icon. */
+    private const ICONS = [
+        'icon-192.png'          => [192, 'any'],
+        'icon-512.png'          => [512, 'any'],
+        'icon-maskable-512.png' => [512, 'maskable'],
+    ];
 
     /** SVG user units (CSS scales the code) and the QR spec's mandatory quiet zone. */
     private const QR_SIZE = 300;
@@ -43,6 +54,34 @@ class CardService
     public function __construct(private readonly CardModel $model)
     {
         $this->init();
+    }
+
+    /** /card/ — the core team, each a link to their card; card.js remembers the choice. No team, no chooser. */
+    public function renderChooser(): string|false
+    {
+        $team = $this->model->team();
+
+        if ($team === []) {
+            return false;
+        }
+
+        $people = array_map(static fn(array $person): array => $person + ['url' => self::url($person['slug'])], $team);
+        $page = [
+            'company' => $this->model->company()['name'],
+            'lang'    => self::language(),
+            'css'     => $this->assetUrl('card.css'),
+            'js'      => $this->assetUrl('card.js'),
+        ];
+        $template = \NTDST_Template_Loader::page('chooser', ['people' => $people, 'page' => $page], [__DIR__ . '/templates']);
+
+        if ($template === null) {
+            return false;
+        }
+
+        // Revalidated every visit: a stale list would send a phone to a card that has gone.
+        $this->emitHeaders([self::NOINDEX, 'Cache-Control: no-cache']);
+
+        return $template;
     }
 
     /** The route: the card's template, or false — core's refusal, a 404. */
@@ -99,6 +138,60 @@ class CardService
         return null;
     }
 
+    /** /card/{slug}/manifest.webmanifest — this person's app: it opens at their card and stays in it (P5). */
+    public function streamManifest(array $params): ?false
+    {
+        $card = $this->model->forSlug((string) ($params['slug'] ?? ''));
+
+        if ($card === null) {
+            return false;
+        }
+
+        $start = self::scope($card['slug']);
+
+        $this->emitFile('application/manifest+json; charset=utf-8', (string) wp_json_encode([
+            'id'               => $start,
+            'name'             => $card['name'],
+            'short_name'       => $card['name'],
+            'start_url'        => $start,
+            'scope'            => $start,
+            'display'          => 'standalone',
+            'orientation'      => 'portrait',
+            'background_color' => self::PAPER,
+            'theme_color'      => self::PAPER,
+            'icons'            => $this->icons(),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        return null;
+    }
+
+    /**
+     * /card/{slug}/sw/ — the offline worker, handed this card's own URLs; the cache name changes whenever
+     * they do. Served below the scope it claims, so Service-Worker-Allowed widens it to the card.
+     */
+    public function streamServiceWorker(array $params): ?false
+    {
+        $card = $this->model->forSlug((string) ($params['slug'] ?? ''));
+
+        if ($card === null) {
+            return false;
+        }
+
+        $urls = $this->offlineUrls($card);
+        $script = (string) file_get_contents(__DIR__ . '/assets/card-sw.js');
+        // A colon never occurs in a slug, so one card's prefix is never the start of another's.
+        $prefix = 'atelier-card:' . $card['slug'] . ':';
+        $worker = ['prefix' => $prefix, 'cache' => $prefix . substr(md5(implode("\n", $urls) . $script), 0, 12), 'urls' => $urls];
+
+        $this->emitFile(
+            'text/javascript; charset=utf-8',
+            'const CARD = ' . wp_json_encode($worker, JSON_UNESCAPED_SLASHES) . ";\n" . $script,
+            'Service-Worker-Allowed: ' . self::scope($card['slug']),
+        );
+
+        return null;
+    }
+
     /** What the QR on the back encodes: the compact vCard, so a phone camera offers "add contact". */
     public static function qrPayload(array $card): string
     {
@@ -130,19 +223,89 @@ class CardService
         return str_ends_with($filename, '.vcf') && $filename !== '.vcf' ? $filename : 'contact.vcf';
     }
 
-    /** What the template needs beside the card: labels, the share link and QR, its assets and language. */
+    /** What the template needs beside the card: labels, the share link and QR, the install, its assets and language. */
     private function page(array $card): array
     {
         return [
             'labels'     => $this->config['labels'],
-            'share'      => $card['share_url'] !== '' ? $card['share_url'] : home_url(trailingslashit(self::PATH . '/' . $card['slug'])),
+            'share'      => $card['share_url'] !== '' ? $card['share_url'] : self::url($card['slug']),
             'qr'         => self::qrSvg(self::qrPayload($card)),
-            'vcard'      => home_url(self::PATH . '/' . $card['slug'] . '/contact.vcf/'),
+            'vcard'      => self::url($card['slug'], 'contact.vcf'),
             'vcard_name' => self::vcardFilename($card['name']),
+            'manifest'   => self::url($card['slug'], 'manifest.webmanifest'),
+            'touch_icon' => $this->touchIcon(),
+            'worker'     => self::url($card['slug'], 'sw'),
+            'scope'      => self::scope($card['slug']),
+            'chooser'    => home_url(trailingslashit(self::PATH)),
             'lang'       => self::language(),
             'css'        => $this->assetUrl('card.css'),
             'js'         => $this->assetUrl('card.js'),
         ];
+    }
+
+    /** A card URL in the trailing-slash form WordPress would 301 to: a worker fetch refuses a redirect. */
+    private static function url(string $slug, string $file = ''): string
+    {
+        return home_url(trailingslashit(self::PATH . '/' . $slug . ($file === '' ? '' : '/' . $file)));
+    }
+
+    /** The card's path: the installed app's start and scope, and the worker's. */
+    private static function scope(string $slug): string
+    {
+        return wp_make_link_relative(self::url($slug));
+    }
+
+    /**
+     * R-3: the Site Icon when one is set, else atelier's neutral icons.
+     *
+     * @return list<array<string, string>>
+     */
+    private function icons(): array
+    {
+        if (has_site_icon()) {
+            return [self::icon(get_site_icon_url(192), 192, 'any'), self::icon(get_site_icon_url(512), 512, 'any')];
+        }
+
+        $icons = [];
+
+        foreach (self::ICONS as $file => [$size, $purpose]) {
+            $icons[] = self::icon($this->assetUrl('icons/' . $file), $size, $purpose);
+        }
+
+        return $icons;
+    }
+
+    /** @return array<string, string> */
+    private static function icon(string $src, int $size, string $purpose): array
+    {
+        $type = wp_check_filetype((string) wp_parse_url($src, PHP_URL_PATH))['type'];
+
+        return ['src' => $src, 'sizes' => "{$size}x{$size}", 'purpose' => $purpose] + ($type ? ['type' => $type] : []);
+    }
+
+    /** R-3: iOS takes the home-screen icon from the page, never from the manifest. */
+    private function touchIcon(): string
+    {
+        return has_site_icon() ? get_site_icon_url(180) : $this->assetUrl('icons/apple-touch-icon.png');
+    }
+
+    /** @return list<string> the card page and what it needs to draw itself — this card's own URLs, same-origin only */
+    private function offlineUrls(array $card): array
+    {
+        $urls = [
+            self::url($card['slug']),
+            $this->assetUrl('card.css'),
+            $this->assetUrl('card.js'),
+            (string) $card['photo'],
+            (string) $card['company']['logo'],
+            $this->touchIcon(),
+            ...array_column($this->icons(), 'src'),
+            self::url($card['slug'], 'contact.vcf'),
+            self::url($card['slug'], 'share.vcf'),
+        ];
+        $host = wp_parse_url(home_url(), PHP_URL_HOST);
+
+        return array_values(array_filter($urls, static fn(string $url): bool => $url !== '' && wp_parse_url($url, PHP_URL_HOST) === $host));
     }
 
     /** The card is in the site's default language, whatever the URL prefix (R-2). */
@@ -157,6 +320,20 @@ class CardService
     private function assetUrl(string $file): string
     {
         return add_query_arg('ver', (string) filemtime(__DIR__ . '/assets/' . $file), plugins_url('assets/' . $file, __FILE__));
+    }
+
+    /** A whole file the browser fetches itself — never cached stale, never indexed. */
+    private function emitFile(string $type, string $body, string ...$headers): void
+    {
+        $this->emitHeaders([
+            'Content-Type: ' . $type,
+            'Content-Length: ' . strlen($body),
+            'Cache-Control: no-cache',
+            'X-Content-Type-Options: nosniff',
+            self::NOINDEX,
+            ...$headers,
+        ]);
+        $this->emitBody($body);
     }
 
     /** @param list<string> $headers complete header lines */
@@ -181,9 +358,12 @@ class CardService
 
         add_action('init', function (): void {
             ntdst_pages()
+                ->path(self::PATH, fn() => $this->renderChooser())
                 ->path(self::PATH . '/:slug', fn(array $params) => $this->renderCard($params))
                 ->path(self::PATH . '/:slug/contact.vcf', fn(array $params) => $this->streamVCard($params))
-                ->path(self::PATH . '/:slug/share.vcf', fn(array $params) => $this->streamShareVCard($params));
+                ->path(self::PATH . '/:slug/share.vcf', fn(array $params) => $this->streamShareVCard($params))
+                ->path(self::PATH . '/:slug/manifest.webmanifest', fn(array $params) => $this->streamManifest($params))
+                ->path(self::PATH . '/:slug/sw', fn(array $params) => $this->streamServiceWorker($params));
         });
     }
 }

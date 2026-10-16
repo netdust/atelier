@@ -33,6 +33,11 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#f4f4f2">
     <title><?php echo esc_html($title); ?></title>
+    <link rel="manifest" href="<?php echo esc_url((string) ($page['manifest'] ?? '')); ?>">
+    <link rel="apple-touch-icon" href="<?php echo esc_url((string) ($page['touch_icon'] ?? '')); ?>">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="<?php echo esc_attr($name); ?>">
     <link rel="stylesheet" href="<?php echo esc_url((string) ($page['css'] ?? '')); ?>">
     <script src="<?php echo esc_url((string) ($page['js'] ?? '')); ?>" defer></script>
 </head>
@@ -41,6 +46,9 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
 <main
     class="card"
     id="card"
+    data-slug="<?php echo esc_attr((string) ($card['slug'] ?? '')); ?>"
+    data-worker="<?php echo esc_url((string) ($page['worker'] ?? '')); ?>"
+    data-scope="<?php echo esc_url((string) ($page['scope'] ?? '')); ?>"
     data-share-url="<?php echo esc_url((string) ($page['share'] ?? '')); ?>"
     data-share-title="<?php echo esc_attr($title); ?>"
     data-copied="<?php echo esc_attr($label('copy_link')); ?>"
@@ -51,6 +59,7 @@ $label = static fn(string $key): string => (string) ($labels[$key] ?? '');
         <?php if (($card['title'] ?? '') !== '') : ?>
             <span class="micro"><?php echo esc_html((string) $card['title']); ?></span>
         <?php endif; ?>
+        <a class="micro not-you" id="not-you" href="<?php echo esc_url((string) ($page['chooser'] ?? '')); ?>" hidden><?php echo esc_html($label('not_you')); ?></a>
     </header>
 
     <?php if ($photo !== '') : ?>

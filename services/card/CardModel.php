@@ -59,6 +59,26 @@ final class CardModel
         ];
     }
 
+    /**
+     * Who has a card: the people forSlug() answers, for the chooser. Their names and photos only.
+     *
+     * @return list<array{slug: string, name: string, photo: ?string}>
+     */
+    public function team(): array
+    {
+        $team = [];
+
+        foreach ($this->people->coreTeam() as $row) {
+            $name = trim((string) $row['title']);
+
+            if ($name !== '') {
+                $team[] = ['slug' => (string) $row['slug'], 'name' => $name, 'photo' => ($row['thumbnail']['url'] ?? null) ?: null];
+            }
+        }
+
+        return $team;
+    }
+
     /** R-1: the given name is the first word, the family name the rest; one word stays a family name. */
     private static function split(string $name): array
     {
@@ -83,7 +103,7 @@ final class CardModel
     }
 
     /** @return array{name: string, logo: ?string, url: string} */
-    private function company(): array
+    public function company(): array
     {
         $profile = $this->profiles->current(ProfileRepository::translatedLanguage());
         $logo = $profile['logo'] ?? null;
