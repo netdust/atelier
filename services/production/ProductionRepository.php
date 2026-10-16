@@ -33,6 +33,14 @@ final class ProductionRepository
         return ntdst_data()->get(ProductionModel::POST_TYPE)->update($id, $data);
     }
 
+    /** One more download of the kit on `$id`: the count is a callback field, read back as text, so it is cast. */
+    public function countDownload(int $id): true|WP_Error
+    {
+        $model = ntdst_data()->get(ProductionModel::POST_TYPE);
+
+        return $model->updateMeta($id, 'kit_download_count', absint($model->getMeta($id, 'kit_download_count')) + 1);
+    }
+
     /**
      * Published only. An empty slug is refused outright: WP_Query ignores an empty `name` and would
      * return the first published row.

@@ -20,8 +20,9 @@ final class PressKitSources
     /**
      * YOOtheme's view for a kit URL: the kit template when the kit opens, the error-404 template when it
      * is refused — YOOtheme matches a view on type and locale only, so a refusal is the page every
-     * unknown URL gets. null on any other URL, leaving YOOtheme's own match. `$locale` is YOOtheme's
-     * locale code, split as its MatchTemplate splits it.
+     * unknown URL gets. A download never renders a page: it streams its zip, or it is that 404. null on
+     * any other URL, leaving YOOtheme's own match. `$locale` is YOOtheme's locale code, split as its
+     * MatchTemplate splits it.
      *
      * @return array{type: string, query: array{locale: string|list<string>}}|null
      */
@@ -36,7 +37,7 @@ final class PressKitSources
         $locale ??= determine_locale();
 
         return [
-            'type'  => $decision['admitted'] ? self::TEMPLATE : 'error-404',
+            'type'  => $decision['admitted'] && !str_ends_with($decision['route'], '_download') ? self::TEMPLATE : 'error-404',
             'query' => ['locale' => str_contains($locale, '_') ? [$locale, (string) strstr($locale, '_', true)] : $locale],
         ];
     }

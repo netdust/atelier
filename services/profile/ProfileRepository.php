@@ -61,6 +61,14 @@ final class ProfileRepository
         return $this->shape(($copy ? $this->published((int) $copy) : null) ?? $this->published($dutch));
     }
 
+    /** One more download of the company kit on `$id`: the count is a callback field, read back as text, so it is cast. */
+    public function countDownload(int $id): true|WP_Error
+    {
+        $model = ntdst_data()->get(ProfileModel::POST_TYPE);
+
+        return $model->updateMeta($id, 'kit_download_count', absint($model->getMeta($id, 'kit_download_count')) + 1);
+    }
+
     private function firstPublished(): ?WP_Post
     {
         return ntdst_data()->get(ProfileModel::POST_TYPE)->orderBy('ID', 'ASC')->first();

@@ -9,6 +9,7 @@ use Atelier\Production\ProductionRepository;
 use Atelier\Profile\ProfileModel;
 use Atelier\Profile\ProfileRepository;
 use Atelier\Support\Languages;
+use WP_Error;
 use WP_Post;
 
 defined('ABSPATH') || exit;
@@ -26,12 +27,14 @@ final class PressKitModel
     }
 
     /**
-     * The company's kit from its profile: the copy in `$lang`, or the Dutch record where that language
-     * has none. null until the Dutch profile is published.
+     * The company's kit from its profile: the text is the copy's in `$lang`, or the Dutch record's where
+     * that language has no published copy. The fallback is per record, not per field, so a copy with an
+     * empty text stays empty. The Dutch profile's logo is the kit's one logo row, named `$logoName`.
+     * null until the Dutch profile is published.
      *
      * @return array<string, mixed>|null
      */
-    public function forCompany(string $lang): ?array
+    public function forCompany(string $lang, string $logoName): ?array
     {
         $dutch = $this->profiles->current(Languages::defaultFor(ProfileModel::POST_TYPE));
         $record = $this->profiles->current($lang);
@@ -47,7 +50,7 @@ final class PressKitModel
             'title'     => $record['name'],
             'text'      => $record['kit']['text'],
             'photos'    => self::files($dutch['kit']['photos'], 'image', 'credit'),
-            'logos'     => [],
+            'logos'     => self::files([['file' => $dutch['logo'], 'name' => $logoName]], 'file', 'name'),
             'documents' => self::files($dutch['kit']['documents'], 'file', 'name'),
             'public'    => $dutch['kit']['public'],
         ];
@@ -83,6 +86,14 @@ final class PressKitModel
         return self::kit('production', $production, $dutch);
     }
 
+    /** One more download of the kit, on the Dutch record that holds its count. */
+    public function countDownload(array $kit): true|WP_Error
+    {
+        return $kit['type'] === 'company'
+            ? $this->profiles->countDownload((int) $kit['dutch_id'])
+            : $this->productions->countDownload((int) $kit['dutch_id']);
+    }
+
     /** @return array<string, mixed> */
     private static function kit(string $type, WP_Post $record, WP_Post $dutch): array
     {
@@ -102,22 +113,24 @@ final class PressKitModel
     }
 
     /**
-     * Repeater rows whose attachment still exists, as `['url' => …, $label => …]`; a row without one is dropped.
+     * Repeater rows whose attachment still exists, as `['attachment' => id, 'url' => …, $label => …]`;
+     * a row without one is dropped.
      *
-     * @return list<array<string, string>>
+     * @return list<array<string, int|string>>
      */
     private static function files(mixed $rows, string $media, string $label): array
     {
         $files = [];
 
         foreach (is_array($rows) ? $rows : [] as $row) {
-            $url = is_array($row) ? wp_get_attachment_url(absint($row[$media] ?? 0)) : false;
+            $id = is_array($row) ? absint($row[$media] ?? 0) : 0;
+            $url = $id > 0 ? wp_get_attachment_url($id) : false;
 
             if (!is_string($url) || $url === '') {
                 continue;
             }
 
-            $files[] = ['url' => $url, $label => is_scalar($row[$label] ?? null) ? trim((string) $row[$label]) : ''];
+            $files[] = ['attachment' => $id, 'url' => $url, $label => is_scalar($row[$label] ?? null) ? trim((string) $row[$label]) : ''];
         }
 
         return $files;
