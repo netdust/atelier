@@ -46,6 +46,27 @@ final class ProductionRepository
     }
 
     /**
+     * Published only, in Polylang's `$lang`: a copy may carry its Dutch record's slug. Checked per row —
+     * `name` makes the query singular, and WP_Query drops a singular query's tax_query.
+     */
+    public function findPublishedBySlugIn(string $slug, string $lang): ?WP_Post
+    {
+        if ($slug === '' || $lang === '') {
+            return null;
+        }
+
+        foreach (ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->get() as $row) {
+            if (pll_get_post_language((int) $row['id']) === $lang) {
+                $post = $this->find((int) $row['id']);
+
+                return $post instanceof WP_Post ? $post : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The credit roles as registered — after site filters, so a role a site
      * adds counts. Key => label.
      *

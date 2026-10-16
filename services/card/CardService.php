@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Card;
 
+use Atelier\Support\NoCache;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -83,7 +84,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
+        $this->emitHeaders([self::NOINDEX, ...NoCache::headers(), self::CSP]);
 
         return $template;
     }
@@ -103,7 +104,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
+        $this->emitHeaders([self::NOINDEX, ...NoCache::headers(), self::CSP]);
 
         return $template;
     }
@@ -134,7 +135,7 @@ class CardService
         // Not ntdst_response()->download(): it exits, and these seams are what the tests capture.
         $this->emitHeaders([
             ...\NTDST_Response::downloadHeaders(strlen($body), self::vcardFilename($card['name']), 'text/vcard; charset=utf-8', $disposition),
-            ...self::noCache(),
+            ...NoCache::headers(),
             self::NOINDEX,
         ]);
         $this->emitBody($body);
@@ -333,28 +334,11 @@ class CardService
         $this->emitHeaders([
             'Content-Type: ' . $type,
             'Content-Length: ' . strlen($body),
-            ...self::noCache(),
+            ...NoCache::headers(),
             self::NOINDEX,
             ...$headers,
         ]);
         $this->emitBody($body);
-    }
-
-    /**
-     * WordPress's own no-cache set, so a worker's network-first fetch and the chooser never see an hour-old copy.
-     *
-     * @return list<string>
-     */
-    private static function noCache(): array
-    {
-        $lines = [];
-
-        // Last-Modified arrives as false, WordPress's "remove it": nothing on these routes sends one.
-        foreach (array_filter(wp_get_nocache_headers()) as $name => $value) {
-            $lines[] = $name . ': ' . $value;
-        }
-
-        return $lines;
     }
 
     /**

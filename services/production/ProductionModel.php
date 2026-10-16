@@ -81,6 +81,26 @@ final class ProductionModel
             ],
             'coproducers' => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
             'funders'     => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
+            ...self::kit(),
+        ];
+    }
+
+    /**
+     * The press kit, as the profile's: the text translates, every cell and fact follows the Dutch record.
+     * The count is readonly — it renders as text and posts nothing, so a save never writes it back stale.
+     */
+    private static function kit(): array
+    {
+        $fact = static fn(string $type, string $label): array => ['type' => $type, 'label' => $label, 'translate' => false];
+        $files = ['type' => 'repeater', 'sub_fields' => ['name' => $fact('text', 'Name'), 'file' => $fact('file', 'File')]];
+
+        return [
+            'kit_public'         => ['type' => 'bool'],
+            'kit_text'           => ['type' => 'html'],
+            'kit_photos'         => ['type' => 'repeater', 'sub_fields' => ['image' => $fact('image', 'Image'), 'credit' => $fact('text', 'Credit')]],
+            'kit_logos'          => $files,
+            'kit_documents'      => $files,
+            'kit_download_count' => ['type' => 'int', 'readonly' => true],
         ];
     }
 
