@@ -9,7 +9,8 @@ defined('ABSPATH') || exit;
 /**
  * A person's vCard (RFC 6350), harvested from daan. Pure — no WordPress — so
  * the unit tier drives it. Every value is editor-authored: escapeValue() is
- * the one chokepoint that keeps a value on its own line.
+ * the one chokepoint that keeps a value on its own line. Its public statics
+ * are the unit tier's seams.
  */
 final class VCardBuilder
 {

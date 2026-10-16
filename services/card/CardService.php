@@ -310,7 +310,10 @@ class CardService
         return array_values(array_filter($urls, static fn(string $url): bool => $url !== '' && wp_parse_url($url, PHP_URL_HOST) === $host));
     }
 
-    /** The card is in the site's default language, whatever the URL prefix (R-2). */
+    /**
+     * The document's `lang`: the default language's LOCALE, whatever the URL prefix (R-2). Not
+     * Languages::defaultFor(), which answers which record to read, by Polylang slug.
+     */
     private static function language(): string
     {
         $locale = function_exists('pll_default_language') ? pll_default_language('locale') : false;
@@ -373,6 +376,10 @@ class CardService
         echo $body;
     }
 
+    /**
+     * Templates resolve through page()'s $extraPaths, never the theme's: a theme cannot override the card
+     * (plan departure 1).
+     */
     private function init(): void
     {
         $config = apply_filters('ntdst/service/card/config', self::DEFAULTS);

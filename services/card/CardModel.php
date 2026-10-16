@@ -87,7 +87,11 @@ final class CardModel
         return $team;
     }
 
-    /** R-1: the given name is the first word, the family name the rest; one word stays a family name. */
+    /**
+     * R-1: the given name is the first word, the family name the rest; one word stays a family name.
+     *
+     * @return array{0: string, 1: string} given, family
+     */
     private static function split(string $name): array
     {
         $parts = preg_split('/\s+/', $name, 2) ?: [''];
