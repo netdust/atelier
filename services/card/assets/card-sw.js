@@ -2,11 +2,20 @@
 // CARD ({ prefix, cache, urls }) is prepended by CardService, which owns the list.
 const paths = new Set(CARD.urls.map((url) => new URL(url, self.location).pathname));
 
+// Not cache.add(): it follows a redirect and keeps the result, which a navigation then refuses offline.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CARD.cache)
-      .then((cache) => Promise.all(CARD.urls.map((url) => cache.add(new Request(url, { cache: 'reload' })).catch(() => {}))))
+      .then((cache) =>
+        Promise.all(
+          CARD.urls.map((url) =>
+            fetch(new Request(url, { cache: 'reload' }))
+              .then((response) => response.ok && !response.redirected && cache.put(url, response))
+              .catch(() => {}),
+          ),
+        ),
+      )
       .then(() => self.skipWaiting()),
   );
 });

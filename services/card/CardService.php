@@ -23,6 +23,9 @@ class CardService
 
     private const NOINDEX = 'X-Robots-Tag: noindex, nofollow';
 
+    /** Revalidated every time: a worker's network-first fetch and the chooser must never see an hour-old copy. */
+    private const NO_CACHE = 'Cache-Control: no-cache';
+
     /** The card's paper (card.css --paper): the installed app's splash and bars. */
     private const PAPER = '#f4f4f2';
 
@@ -67,7 +70,7 @@ class CardService
 
         $people = array_map(static fn(array $person): array => $person + ['url' => self::url($person['slug'])], $team);
         $page = [
-            'company' => $this->model->company()['name'],
+            'company' => $this->model->company()['name'] ?: get_bloginfo('name'),
             'lang'    => self::language(),
             'css'     => $this->assetUrl('card.css'),
             'js'      => $this->assetUrl('card.js'),
@@ -78,8 +81,7 @@ class CardService
             return false;
         }
 
-        // Revalidated every visit: a stale list would send a phone to a card that has gone.
-        $this->emitHeaders([self::NOINDEX, 'Cache-Control: no-cache']);
+        $this->emitHeaders([self::NOINDEX, self::NO_CACHE]);
 
         return $template;
     }
@@ -99,7 +101,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX]);
+        $this->emitHeaders([self::NOINDEX, self::NO_CACHE]);
 
         return $template;
     }
@@ -130,7 +132,7 @@ class CardService
         // Not ntdst_response()->download(): it exits, and these seams are what the tests capture.
         $this->emitHeaders([
             ...\NTDST_Response::downloadHeaders(strlen($body), self::vcardFilename($card['name']), 'text/vcard; charset=utf-8', $disposition),
-            'Cache-Control: no-cache, must-revalidate, max-age=0',
+            self::NO_CACHE,
             self::NOINDEX,
         ]);
         $this->emitBody($body);
@@ -328,7 +330,7 @@ class CardService
         $this->emitHeaders([
             'Content-Type: ' . $type,
             'Content-Length: ' . strlen($body),
-            'Cache-Control: no-cache',
+            self::NO_CACHE,
             'X-Content-Type-Options: nosniff',
             self::NOINDEX,
             ...$headers,

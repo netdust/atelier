@@ -33,8 +33,10 @@
   }
 
   // Only on the phone that chose this card: anyone the card was shared with has nothing to undo.
+  // Not in the installed app: /card/ is outside its scope, and the app is that person's card.
   const notYou = $('not-you');
-  if (notYou && remembered.get() === card.dataset.slug) {
+  const installed = window.matchMedia('(display-mode: standalone)').matches;
+  if (notYou && !installed && remembered.get() === card.dataset.slug) {
     notYou.hidden = false;
     notYou.addEventListener('click', () => remembered.forget());
   }
