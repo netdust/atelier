@@ -48,14 +48,7 @@ final class PressKitModel
             return null;
         }
 
-        $service = ntdst_get(PressKitService::class);
-        $params = ['slug' => $production->post_name];
-        $in = $default === null ? null : $lang;
-
-        return self::kit('production', $production, $dutch) + [
-            'url'          => $service->url('/:slug', $params, $in),
-            'download_url' => $service->url('/:slug/download', $params, $in),
-        ];
+        return self::kit('production', $production, $dutch);
     }
 
     /** @return array<string, mixed> */

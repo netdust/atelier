@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Models\PersonModel;
+use Atelier\Support\Languages;
 use NTDST_FieldTypes;
 use WP_Error;
 use WP_Post;
@@ -45,25 +46,18 @@ final class ProductionRepository
         return ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->first();
     }
 
-    /**
-     * Published only, in Polylang's `$lang`: a copy may carry its Dutch record's slug. Checked per row —
-     * `name` makes the query singular, and WP_Query drops a singular query's tax_query.
-     */
+    /** Published only, in Polylang's `$lang`: a copy may carry its Dutch record's slug. */
     public function findPublishedBySlugIn(string $slug, string $lang): ?WP_Post
     {
         if ($slug === '' || $lang === '') {
             return null;
         }
 
-        foreach (ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->get() as $row) {
-            if (pll_get_post_language((int) $row['id']) === $lang) {
-                $post = $this->find((int) $row['id']);
+        $holders = ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->where('post_status', 'publish')->all();
+        $id = Languages::holderIn($holders, $lang);
+        $post = $id === null ? null : $this->find($id);
 
-                return $post instanceof WP_Post ? $post : null;
-            }
-        }
-
-        return null;
+        return $post instanceof WP_Post ? $post : null;
     }
 
     /**

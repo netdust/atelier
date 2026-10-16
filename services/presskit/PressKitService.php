@@ -55,8 +55,9 @@ class PressKitService
     public function renderProduction(): string|false
     {
         $decision = $this->decision();
+        $page = \NTDST_Template_Loader::locate('page');
 
-        if ($decision === null || !$decision['admitted']) {
+        if ($decision === null || !$decision['admitted'] || $page === null) {
             return false;
         }
 
@@ -65,7 +66,7 @@ class PressKitService
         add_filter('ntdst/baseline/seo/meta', static fn(array $tags): array => self::head($tags, $kit));
         $this->emitHeaders([self::NOINDEX, ...NoCache::headers()]);
 
-        return get_template_directory() . '/page.php';
+        return $page;
     }
 
     /**
@@ -130,6 +131,11 @@ class PressKitService
      */
     private function decide(WP_Query $query): ?array
     {
+        // No page route matched this URL, so it is none of ours: no round trip to make.
+        if ($query->get('ntdst_page') === '') {
+            return null;
+        }
+
         $slug = $query->get('ntdst_p_slug');
         $slug = is_scalar($slug) ? (string) $slug : '';
         $requested = trailingslashit(home_url((string) ($GLOBALS['wp']->request ?? '')));
@@ -138,13 +144,24 @@ class PressKitService
             $params = str_contains($tail, ':slug') ? ['slug' => $slug] : [];
 
             if (($params === [] || $slug !== '') && $this->url($tail, $params) === $requested) {
-                $kit = $route === 'production' ? $this->model->forProduction($slug, (string) ntdst_pages()->language()) : null;
+                $kit = $route === 'production' ? $this->productionKit($slug) : null;
 
                 return ['route' => $route, 'kit' => $kit, 'admitted' => $kit !== null && $this->gate($kit)];
             }
         }
 
         return null;
+    }
+
+    /** @return array<string, mixed>|null the kit in this request's language, with its own URLs */
+    private function productionKit(string $slug): ?array
+    {
+        $kit = $this->model->forProduction($slug, (string) ntdst_pages()->language());
+
+        return $kit === null ? null : $kit + [
+            'url'          => $this->url(self::ROUTES['production'], ['slug' => $slug]),
+            'download_url' => $this->url(self::ROUTES['production_download'], ['slug' => $slug]),
+        ];
     }
 
     /** @return string|array<string, string> the route pattern, one per language when the base is */
