@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Models\PersonModel;
+use Atelier\Support\DownloadCount;
 use Atelier\Support\Languages;
 use NTDST_FieldTypes;
 use WP_Error;
@@ -18,9 +19,9 @@ defined('ABSPATH') || exit;
  */
 final class ProductionRepository
 {
-    public function find(int $id): WP_Post|WP_Error
+    public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
     {
-        return ntdst_data()->get(ProductionModel::POST_TYPE)->find($id);
+        return ntdst_data()->get(ProductionModel::POST_TYPE)->find($id, $status);
     }
 
     public function create(array $data): WP_Post|WP_Error
@@ -33,35 +34,17 @@ final class ProductionRepository
         return ntdst_data()->get(ProductionModel::POST_TYPE)->update($id, $data);
     }
 
-    /** One more download of the kit on `$id`: the count is a callback field, read back as text, so it is cast. */
     public function countDownload(int $id): true|WP_Error
     {
-        $model = ntdst_data()->get(ProductionModel::POST_TYPE);
-        $record = $model->find($id);
-
-        // Publish-only: an unpublished record's count would read back as nothing, and restart at 1.
-        if (is_wp_error($record)) {
-            return $record;
-        }
-
-        return $model->updateMeta($id, 'kit_download_count', absint($record->fields['kit_download_count'] ?? 0) + 1);
+        return DownloadCount::increment(ntdst_data()->get(ProductionModel::POST_TYPE), $id);
     }
 
     /**
-     * Published only. An empty slug is refused outright: WP_Query ignores an empty `name` and would
-     * return the first published row.
+     * Published only, in Polylang's `$lang` — a copy may carry its Dutch record's slug — or the first
+     * published holder of the slug when `$lang` is null. An empty slug is refused outright: WP_Query
+     * ignores an empty `name` and would return the first published row.
      */
-    public function findPublishedBySlug(string $slug): ?WP_Post
-    {
-        if ($slug === '') {
-            return null;
-        }
-
-        return ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->first();
-    }
-
-    /** Published only, in Polylang's `$lang`: a copy may carry its Dutch record's slug. */
-    public function findPublishedBySlugIn(string $slug, string $lang): ?WP_Post
+    public function findPublishedBySlug(string $slug, ?string $lang = null): ?WP_Post
     {
         if ($slug === '' || $lang === '') {
             return null;

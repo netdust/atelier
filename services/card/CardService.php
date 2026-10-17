@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Card;
 
+use Atelier\Support\Asset;
 use Atelier\Support\NoCache;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
@@ -75,8 +76,8 @@ class CardService
         $page = [
             'company' => $this->model->company()['name'] ?: get_bloginfo('name'),
             'lang'    => self::language(),
-            'css'     => $this->assetUrl('card.css'),
-            'js'      => $this->assetUrl('card.js'),
+            'css'     => Asset::url(__FILE__, 'assets/card.css'),
+            'js'      => Asset::url(__FILE__, 'assets/card.js'),
         ];
         $template = \NTDST_Template_Loader::page('chooser', ['people' => $people, 'page' => $page], [__DIR__ . '/templates']);
 
@@ -241,8 +242,8 @@ class CardService
             'scope'      => self::scope($card['slug']),
             'chooser'    => home_url(trailingslashit(self::PATH)),
             'lang'       => self::language(),
-            'css'        => $this->assetUrl('card.css'),
-            'js'         => $this->assetUrl('card.js'),
+            'css'        => Asset::url(__FILE__, 'assets/card.css'),
+            'js'         => Asset::url(__FILE__, 'assets/card.js'),
         ];
     }
 
@@ -272,7 +273,7 @@ class CardService
         $icons = [];
 
         foreach (self::ICONS as $file => [$size, $purpose]) {
-            $icons[] = self::icon($this->assetUrl('icons/' . $file), $size, $purpose);
+            $icons[] = self::icon(Asset::url(__FILE__, 'assets/icons/' . $file), $size, $purpose);
         }
 
         return $icons;
@@ -289,7 +290,7 @@ class CardService
     /** R-3: iOS takes the home-screen icon from the page, never from the manifest. */
     private function touchIcon(): string
     {
-        return has_site_icon() ? get_site_icon_url(180) : $this->assetUrl('icons/apple-touch-icon.png');
+        return has_site_icon() ? get_site_icon_url(180) : Asset::url(__FILE__, 'assets/icons/apple-touch-icon.png');
     }
 
     /** @return list<string> the card page and what it needs to draw itself — this card's own URLs, same-origin only */
@@ -297,8 +298,8 @@ class CardService
     {
         $urls = [
             self::url($card['slug']),
-            $this->assetUrl('card.css'),
-            $this->assetUrl('card.js'),
+            Asset::url(__FILE__, 'assets/card.css'),
+            Asset::url(__FILE__, 'assets/card.js'),
             (string) $card['photo'],
             (string) $card['company']['logo'],
             $this->touchIcon(),
@@ -320,12 +321,6 @@ class CardService
         $locale = function_exists('pll_default_language') ? pll_default_language('locale') : false;
 
         return str_replace('_', '-', is_string($locale) && $locale !== '' ? $locale : get_locale());
-    }
-
-    /** Versioned by filemtime() so an edit invalidates itself. */
-    private function assetUrl(string $file): string
-    {
-        return add_query_arg('ver', (string) filemtime(__DIR__ . '/assets/' . $file), plugins_url('assets/' . $file, __FILE__));
     }
 
     /** A whole file the browser fetches itself — never cached stale, never indexed. */

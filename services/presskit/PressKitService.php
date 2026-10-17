@@ -169,7 +169,7 @@ class PressKitService
      *
      * @param array<string, string> $params
      */
-    public function url(string $tail, array $params = [], ?string $lang = null): string
+    private function url(string $tail, array $params = [], ?string $lang = null): string
     {
         return trailingslashit(ntdst_pages()->url($this->paths($tail), $params, $lang));
     }

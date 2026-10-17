@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\PressKit;
 
+use Atelier\Production\ProductionRepository;
 use WP_Post;
 use WP_Query;
 
@@ -129,6 +130,8 @@ final class PressKitSources
      */
     public static function production(array $kit): ?WP_Post
     {
-        return $kit['type'] === 'production' ? get_post((int) $kit['id']) : null;
+        $production = $kit['type'] === 'production' ? ntdst_get(ProductionRepository::class)->find((int) $kit['id']) : null;
+
+        return $production instanceof WP_Post ? $production : null;
     }
 }

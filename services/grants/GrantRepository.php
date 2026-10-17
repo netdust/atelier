@@ -37,7 +37,7 @@ final class GrantRepository
      * 64 lowercase hex characters from the platform's CSPRNG. random_bytes()'s exception is never
      * caught here: a weaker token is worse than none.
      */
-    public static function mint(): string
+    private static function mint(): string
     {
         return bin2hex(random_bytes(self::TOKEN_BYTES));
     }

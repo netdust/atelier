@@ -8,6 +8,7 @@ use Atelier\Production\ProductionModel;
 use Atelier\Production\ProductionRepository;
 use Atelier\Profile\ProfileModel;
 use Atelier\Profile\ProfileRepository;
+use Atelier\Support\Attachment;
 use Atelier\Support\Languages;
 use WP_Error;
 use WP_Post;
@@ -20,6 +21,9 @@ defined('ABSPATH') || exit;
  */
 final class PressKitModel
 {
+    /** The records a kit is held by: a production's, and the company profile's. */
+    public const TYPES = [ProductionModel::POST_TYPE, ProfileModel::POST_TYPE];
+
     public function __construct(
         private readonly ProductionRepository $productions,
         private readonly ProfileRepository $profiles,
@@ -70,9 +74,7 @@ final class PressKitModel
         }
 
         $default = Languages::defaultFor(ProductionModel::POST_TYPE);
-        $production = $default === null
-            ? $this->productions->findPublishedBySlug($slug)
-            : $this->productions->findPublishedBySlugIn($slug, $lang);
+        $production = $this->productions->findPublishedBySlug($slug, $default === null ? null : $lang);
 
         if ($production === null) {
             return null;
@@ -95,6 +97,10 @@ final class PressKitModel
      */
     public function dutchOf(string $postType, int $id): ?int
     {
+        if (!in_array($postType, self::TYPES, true)) {
+            return null;
+        }
+
         $default = Languages::defaultFor($postType);
         $dutchId = $id > 0 && $default !== null ? (int) pll_get_post($id, $default) : $id;
 
@@ -102,11 +108,11 @@ final class PressKitModel
             return null;
         }
 
-        return match ($postType) {
-            ProductionModel::POST_TYPE => get_post_type($dutchId) === ProductionModel::POST_TYPE ? $dutchId : null,
-            ProfileModel::POST_TYPE    => $this->profiles->dutchId() === $dutchId ? $dutchId : null,
-            default                    => null,
-        };
+        $held = $postType === ProfileModel::POST_TYPE
+            ? $this->profiles->dutchId() === $dutchId
+            : $this->productions->find($dutchId, 'any') instanceof WP_Post;
+
+        return $held ? $dutchId : null;
     }
 
     /** dutchOf(), when that record is published: a kit that opens, so one a link may be issued or mailed for. */
@@ -191,7 +197,7 @@ final class PressKitModel
     }
 
     /**
-     * Repeater rows whose attachment still exists, as `['attachment' => id, 'url' => …, $label => …]`;
+     * Repeater rows whose attachment is live, as `['attachment' => id, 'url' => …, $label => …]`;
      * a row without one is dropped.
      *
      * @return list<array<string, int|string>>
@@ -201,14 +207,13 @@ final class PressKitModel
         $files = [];
 
         foreach (is_array($rows) ? $rows : [] as $row) {
-            $id = is_array($row) ? absint($row[$media] ?? 0) : 0;
-            $url = $id > 0 ? wp_get_attachment_url($id) : false;
+            $url = is_array($row) ? Attachment::url($row[$media] ?? 0) : null;
 
-            if (!is_string($url) || $url === '') {
+            if ($url === null) {
                 continue;
             }
 
-            $files[] = ['attachment' => $id, 'url' => $url, $label => is_scalar($row[$label] ?? null) ? trim((string) $row[$label]) : ''];
+            $files[] = ['attachment' => absint($row[$media]), 'url' => $url, $label => is_scalar($row[$label] ?? null) ? trim((string) $row[$label]) : ''];
         }
 
         return $files;

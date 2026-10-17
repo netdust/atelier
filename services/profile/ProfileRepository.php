@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
+use Atelier\Support\Attachment;
+use Atelier\Support\DownloadCount;
 use Atelier\Support\Languages;
 use Atelier\Support\WebUrl;
 use ntdst\baseline\services\polylang\SharedSlugs;
@@ -61,18 +63,9 @@ final class ProfileRepository
         return $this->shape(($copy ? $this->published((int) $copy) : null) ?? $this->published($dutch));
     }
 
-    /** One more download of the company kit on `$id`: the count is a callback field, read back as text, so it is cast. */
     public function countDownload(int $id): true|WP_Error
     {
-        $model = ntdst_data()->get(ProfileModel::POST_TYPE);
-        $record = $model->find($id);
-
-        // Publish-only: an unpublished record's count would read back as nothing, and restart at 1.
-        if (is_wp_error($record)) {
-            return $record;
-        }
-
-        return $model->updateMeta($id, 'kit_download_count', absint($record->fields['kit_download_count'] ?? 0) + 1);
+        return DownloadCount::increment(ntdst_data()->get(ProfileModel::POST_TYPE), $id);
     }
 
     private function firstPublished(): ?WP_Post
@@ -177,12 +170,10 @@ final class ProfileRepository
         return $kept;
     }
 
-    /** An id read back only when it still names an attachment. */
+    /** An id read back only while its attachment is live. */
     private static function attachment(mixed $id): ?int
     {
-        $id = absint($id);
-
-        return $id > 0 && get_post_type($id) === 'attachment' ? $id : null;
+        return Attachment::url($id) === null ? null : absint($id);
     }
 
     /** Published, in the default language; the title is the company name, and no user owns it. */

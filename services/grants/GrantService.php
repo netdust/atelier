@@ -6,8 +6,7 @@ namespace Atelier\Grants;
 
 use Atelier\PressKit\PressKitModel;
 use Atelier\PressKit\PressKitService;
-use Atelier\Production\ProductionModel;
-use Atelier\Profile\ProfileModel;
+use Atelier\Support\Asset;
 use Atelier\Support\Languages;
 use WP_Error;
 use WP_Post;
@@ -25,14 +24,11 @@ defined('ABSPATH') || exit;
  */
 class GrantService
 {
-    public const NAMESPACE = 'atelier/v1';
+    private const NAMESPACE = 'atelier/v1';
 
     private const HANDLE = 'atelier-grants';
 
     private const BOX = 'atelier_grants';
-
-    /** The records a kit is managed from: a production's kit and the company's. */
-    private const KITS = [ProductionModel::POST_TYPE, ProfileModel::POST_TYPE];
 
     /** The panel's columns, each a key of a row and of the labels. */
     private const COLUMNS = ['address', 'lang', 'created', 'sent', 'accesses', 'status'];
@@ -325,7 +321,7 @@ class GrantService
     /** The box, only for whoever may manage grants: its rows are recipients' addresses. */
     private function addPanel(string $type, mixed $post): void
     {
-        if (!in_array($type, self::KITS, true) || !$post instanceof WP_Post || !self::mayManage()) {
+        if (!in_array($type, PressKitModel::TYPES, true) || !$post instanceof WP_Post || !self::mayManage()) {
             return;
         }
 
@@ -422,22 +418,16 @@ class GrantService
     {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
 
-        if ($hook !== 'post.php' || !$screen instanceof \WP_Screen || !in_array($screen->post_type, self::KITS, true) || !self::mayManage()) {
+        if ($hook !== 'post.php' || !$screen instanceof \WP_Screen || !in_array($screen->post_type, PressKitModel::TYPES, true) || !self::mayManage()) {
             return;
         }
 
-        wp_enqueue_script(self::HANDLE, self::asset('grants.js'), ['wp-api-fetch'], null, true);
-        wp_enqueue_style(self::HANDLE, self::asset('grants.css'), [], null);
+        wp_enqueue_script(self::HANDLE, Asset::url(__FILE__, 'assets/grants.js'), ['wp-api-fetch'], null, true);
+        wp_enqueue_style(self::HANDLE, Asset::url(__FILE__, 'assets/grants.css'), [], null);
         wp_localize_script(self::HANDLE, 'atelierGrants', [
             'namespace' => self::NAMESPACE,
             'labels'    => array_intersect_key($this->config['labels'], array_flip(self::SCRIPT_LABELS)),
         ]);
-    }
-
-    /** Versioned by filemtime() so an edit invalidates itself. */
-    private static function asset(string $file): string
-    {
-        return add_query_arg('ver', (string) filemtime(__DIR__ . '/assets/' . $file), plugins_url('assets/' . $file, __FILE__));
     }
 
     /**
@@ -474,7 +464,7 @@ class GrantService
         $permission = static fn(): bool => self::mayManage();
         $handlers = ['issue' => $this->issue(...), 'send' => $this->send(...), 'revoke' => $this->revoke(...)];
 
-        foreach (self::KITS as $type) {
+        foreach (PressKitModel::TYPES as $type) {
             foreach ($handlers as $action => $handler) {
                 ntdst_rest(self::NAMESPACE)->post(
                     "/grants/$type/$action",
