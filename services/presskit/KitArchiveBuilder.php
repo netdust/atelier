@@ -16,6 +16,9 @@ final class KitArchiveBuilder
 {
     private const CREDITS = 'credits.txt';
 
+    /** Already compressed: deflating these again costs time before the first byte and saves nothing. */
+    private const STORED = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'zip', 'mp3', 'mp4'];
+
     /**
      * An entry without a label is named by its file.
      *
@@ -40,6 +43,8 @@ final class KitArchiveBuilder
         if ($zip->numFiles === 0) {
             $zip->addFromString('README.txt', "This kit has no files yet.\n");
         }
+
+        self::compress($zip);
 
         // libzip writes, and reads every source, only now: a failure here leaves no zip to send.
         if (!$zip->close()) {
@@ -98,6 +103,15 @@ final class KitArchiveBuilder
 
         if ($creditsName !== null && $credits !== '') {
             $zip->addFromString($folder . '/' . $creditsName, $credits);
+        }
+    }
+
+    /** Each entry by its name's extension, which is its file's: media stored as it is, the rest deflated. */
+    private static function compress(\ZipArchive $zip): void
+    {
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $extension = strtolower(pathinfo((string) $zip->getNameIndex($index), PATHINFO_EXTENSION));
+            $zip->setCompressionIndex($index, in_array($extension, self::STORED, true) ? \ZipArchive::CM_STORE : \ZipArchive::CM_DEFLATE);
         }
     }
 
