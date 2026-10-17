@@ -116,12 +116,15 @@ final class PressKitModel
         return $held ? $dutchId : null;
     }
 
-    /** dutchOf(), when that record is published: a kit that opens, so one a link may be issued or mailed for. */
+    /**
+     * dutchOf(), when that record is published and asks no password: a kit that opens, so one a link
+     * may be issued or mailed for.
+     */
     public function holder(string $postType, int $id): ?int
     {
         $dutchId = $this->dutchOf($postType, $id);
 
-        if ($dutchId === null) {
+        if ($dutchId === null || $this->isProtected($postType, $dutchId)) {
             return null;
         }
 
@@ -132,10 +135,30 @@ final class PressKitModel
         return $published ? $dutchId : null;
     }
 
+    /** A password on the kit's Dutch record, asked of every reader: no link opens the kit, as its route does not. */
+    public function isProtected(string $postType, int $id): bool
+    {
+        $dutchId = $this->dutchOf($postType, $id);
+
+        if ($dutchId === null) {
+            return false;
+        }
+
+        if ($postType === ProfileModel::POST_TYPE) {
+            $profile = $this->profiles->current(Languages::defaultFor($postType));
+
+            return ($profile['id'] ?? null) === $dutchId && $profile['protected'];
+        }
+
+        $dutch = $this->productions->find($dutchId, 'any');
+
+        return $dutch instanceof WP_Post && $dutch->post_password !== '';
+    }
+
     /**
-     * R-5: the record a personal link opens in `$lang` — its copy there when that is published, else
-     * the Dutch record — with that record's language, slug and title. null when `$dutchId` is no
-     * kit's Dutch record.
+     * R-5: the record a personal link opens in `$lang` — its copy there when that is published and asks
+     * no password, else the Dutch record — with that record's language, slug and title. null when
+     * `$dutchId` is no kit's Dutch record.
      *
      * @return array{lang: string, slug: string, title: string}|null
      */
@@ -150,6 +173,7 @@ final class PressKitModel
 
         if ($postType === ProfileModel::POST_TYPE) {
             $profile = $this->profiles->current($lang === '' ? null : $lang);
+            $profile = ($profile['protected'] ?? false) ? $this->profiles->current($default === '' ? null : $default) : $profile;
 
             return $profile === null ? null : [
                 'lang'  => $profile['id'] === $dutchId ? $default : $lang,
@@ -161,7 +185,7 @@ final class PressKitModel
         // No copy is 0, and get_post(0) is whatever post is global: never asked.
         $copyId = $lang === $default ? 0 : (int) pll_get_post($dutchId, $lang);
         $copy = $copyId > 0 ? $this->productions->find($copyId) : null;
-        $record = $copy instanceof WP_Post ? $copy : $this->productions->find($dutchId);
+        $record = $copy instanceof WP_Post && $copy->post_password === '' ? $copy : $this->productions->find($dutchId);
 
         return $record instanceof WP_Post ? [
             'lang'  => $record === $copy ? $lang : $default,

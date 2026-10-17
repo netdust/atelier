@@ -54,6 +54,7 @@ class GrantService
             'not_yet'          => 'not yet',
             'empty'            => 'No personal links for this press kit yet.',
             'unpublished'      => 'Publish first: a personal link opens a published press kit only.',
+            'protected'        => 'Remove the password first: a personal link opens no password-protected press kit.',
             'addresses'        => 'Email addresses, separated by a comma or a new line',
             'issue'            => 'Create links',
             'send'             => 'Send',
@@ -359,7 +360,8 @@ class GrantService
         $kit = $this->kits->holder($type, (int) $post->ID);
 
         if ($kit === null) {
-            echo '<p class="description">' . esc_html($this->label('unpublished')) . '</p>';
+            $note = $this->kits->isProtected($type, (int) $post->ID) ? 'protected' : 'unpublished';
+            echo '<p class="description">' . esc_html($this->label($note)) . '</p>';
 
             return;
         }
