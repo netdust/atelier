@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Support;
 
+use Atelier\Grants\GrantModel;
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
 use Atelier\Performance\PerformanceModel;
@@ -28,6 +29,8 @@ final class PrivateFields
         ActivityModel::POST_TYPE     => ActivityModel::PRIVATE,
         AssignmentModel::POST_TYPE   => AssignmentModel::PRIVATE,
         AbsenceModel::POST_TYPE      => AbsenceModel::PRIVATE,
+        // Tokens and recipients' addresses: the whole model stays out of the builder.
+        GrantModel::POST_TYPE        => GrantModel::PRIVATE,
     ];
 
     /**

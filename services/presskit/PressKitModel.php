@@ -45,6 +45,7 @@ final class PressKitModel
 
         return [
             'type'      => 'company',
+            'post_type' => ProfileModel::POST_TYPE,
             'id'        => $record['id'],
             'dutch_id'  => $dutch['id'],
             'title'     => $record['name'],
@@ -83,7 +84,7 @@ final class PressKitModel
             return null;
         }
 
-        return self::kit('production', $production, $dutch);
+        return self::kit('production', ProductionModel::POST_TYPE, $production, $dutch);
     }
 
     /** One more download of the kit, on the Dutch record that holds its count. */
@@ -95,12 +96,13 @@ final class PressKitModel
     }
 
     /** @return array<string, mixed> */
-    private static function kit(string $type, WP_Post $record, WP_Post $dutch): array
+    private static function kit(string $type, string $postType, WP_Post $record, WP_Post $dutch): array
     {
         $facts = (array) $dutch->fields;
 
         return [
             'type'      => $type,
+            'post_type' => $postType,
             'id'        => (int) $record->ID,
             'dutch_id'  => (int) $dutch->ID,
             'title'     => (string) $record->post_title,

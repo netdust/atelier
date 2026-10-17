@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Atelier\PressKit;
 
+use Atelier\Grants\GrantModel;
+use Atelier\Grants\GrantRepository;
 use Atelier\Support\NoCache;
+use WP_Post;
 use WP_Query;
 
 defined('ABSPATH') || exit;
 
 /**
  * A press kit per production at /{base}/{slug}/ and the company's at /{base}/, in the language of its
- * URL, rendered by the site's builder template for kits, and each kit's zip at …/download/. Every
- * refusal is the site's own 404, so a kit's existence and its public state are never told apart.
+ * URL, rendered by the site's builder template for kits, and each kit's zip at …/download/. A kit that
+ * is not public opens with a personal `?token=`. Every refusal is the site's own 404, so a kit's
+ * existence, its public state and a token's fate are never told apart.
  */
 class PressKitService
 {
@@ -23,6 +27,8 @@ class PressKitService
     private const TEMP_PREFIX = 'atelier-presskit-';
 
     private const CHUNK_BYTES = 8192;
+
+    private const TOKEN = 'token';
 
     /**
      * `base` is one word, or one per language; the order is the rewrite order — the literal routes
@@ -48,8 +54,10 @@ class PressKitService
     /** This request's answer, remembered with the main query it was decided for. */
     private ?array $decision = null;
 
-    public function __construct(private readonly PressKitModel $model)
-    {
+    public function __construct(
+        private readonly PressKitModel $model,
+        private readonly GrantRepository $grants,
+    ) {
         $this->init();
     }
 
@@ -73,6 +81,7 @@ class PressKitService
         add_filter('document_title_parts', static fn(array $parts): array => ['title' => $kit['title']] + $parts);
         add_filter('ntdst/baseline/seo/meta', static fn(array $tags): array => self::head($tags, $kit));
         $this->emitHeaders([self::NOINDEX, ...NoCache::headers()]);
+        $this->recordUse($decision['grant']);
 
         return $page;
     }
@@ -119,24 +128,18 @@ class PressKitService
         register_shutdown_function(static fn() => self::remove($path));
 
         try {
-            return $this->stream($decision['kit'], $path);
+            return $this->stream($decision['kit'], $decision['grant'], $path);
         } finally {
             self::remove($path);
         }
     }
 
-    /** Whether a kit opens: a public kit does. */
-    public function gate(array $kit): bool
-    {
-        return $kit['public'] === true;
-    }
-
     /**
-     * Which kit route this request is, its kit and whether it opens — decided once per main query:
-     * YOOtheme asks at pre_get_posts, before the route's callback runs, and both must agree.
-     * null when the URL is no kit route.
+     * Which kit route this request is, its kit, whether it opens and the grant that opened it — decided
+     * once per main query: YOOtheme asks at pre_get_posts, before the route's callback runs, and both
+     * must agree. null when the URL is no kit route.
      *
-     * @return array{route: string, kit: ?array, admitted: bool}|null
+     * @return array{route: string, kit: ?array, admitted: bool, grant: ?WP_Post}|null
      */
     public function decision(?WP_Query $query = null): ?array
     {
@@ -163,7 +166,7 @@ class PressKitService
      * Recognised by the round trip through core's own url(): the URL this route builds for the request's
      * slug is the URL requested, or this is no request to it.
      *
-     * @return array{route: string, kit: ?array, admitted: bool}|null
+     * @return array{route: string, kit: ?array, admitted: bool, grant: ?WP_Post}|null
      */
     private function decide(WP_Query $query): ?array
     {
@@ -181,12 +184,39 @@ class PressKitService
 
             if (($params === [] || $slug !== '') && $this->url($tail, $params) === $requested) {
                 $kit = $this->kit($route, $params);
+                $opens = $kit === null ? false : $this->gate($kit);
 
-                return ['route' => $route, 'kit' => $kit, 'admitted' => $kit !== null && $this->gate($kit)];
+                return [
+                    'route'    => $route,
+                    'kit'      => $kit,
+                    'admitted' => $opens !== false,
+                    'grant'    => $opens instanceof WP_Post ? $opens : null,
+                ];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Who a published kit opens for: anyone when it is public (true); otherwise only the live grant its
+     * `?token=` names (that grant), issued for this kit's Dutch record, so one link opens it in every
+     * language; else no one (false). The token is handed to verify() as sent — it unslashes it once.
+     */
+    private function gate(array $kit): bool|WP_Post
+    {
+        if ($kit['public'] === true) {
+            return true;
+        }
+
+        // phpcs:ignore WordPress.Security -- a credential, compared byte-exact by verify(); never altered or output.
+        $token = $_GET[self::TOKEN] ?? '';
+
+        if (!is_string($token) || $token === '') {
+            return false;
+        }
+
+        return $this->grants->verify($token, (string) $kit['post_type'], (int) $kit['dutch_id']) ?? false;
     }
 
     /**
@@ -210,7 +240,7 @@ class PressKitService
     }
 
     /** The zip built and sent; false when it cannot be, before a byte of it leaves. */
-    private function stream(array $kit, string $path): ?false
+    private function stream(array $kit, ?WP_Post $grant, string $path): ?false
     {
         $lang = (string) ntdst_pages()->language();
         $archive = KitArchiveBuilder::build($path, $this->collections($kit, $lang));
@@ -242,6 +272,7 @@ class PressKitService
         }
 
         $this->count($kit);
+        $this->recordUse($grant);
 
         $name = (new ArchiveNameSanitizer())->sanitize($kit['title'] . '.zip');
         $this->emitHeaders([
@@ -257,9 +288,7 @@ class PressKitService
     /** A HEAD is answered as a GET, the same zip built so its length agrees, but it downloads nothing. */
     private function count(array $kit): void
     {
-        $method = strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'))));
-
-        if ($method === 'HEAD') {
+        if (self::isHead()) {
             return;
         }
 
@@ -268,6 +297,19 @@ class PressKitService
         if (is_wp_error($counted)) {
             ntdst_log(self::LOG)->error('Press kit download not counted: ' . $counted->get_error_message(), ['kit' => $kit['dutch_id']]);
         }
+    }
+
+    /** A token's use, where the kit is served; a HEAD — a link checker, a mail scanner — is none. */
+    private function recordUse(?WP_Post $grant): void
+    {
+        if ($grant !== null && !self::isHead()) {
+            $this->grants->recordAccess($grant);
+        }
+    }
+
+    private static function isHead(): bool
+    {
+        return strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')))) === 'HEAD';
     }
 
     /**
@@ -433,6 +475,9 @@ class PressKitService
     {
         $this->config = apply_filters('ntdst/service/presskit/config', self::DEFAULTS) + self::DEFAULTS;
         $this->config['words'] = (array) $this->config['words'] + self::DEFAULTS['words'];
+
+        // The records behind a kit's personal links, registered by the kit that reads them.
+        GrantModel::register();
 
         add_action('init', function (): void {
             ntdst_pages()
