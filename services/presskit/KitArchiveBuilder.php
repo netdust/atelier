@@ -9,8 +9,8 @@ defined('ABSPATH') || exit;
 /**
  * A kit's zip on disk: each collection in its own folder, a collection's credits in a credits.txt beside
  * its files (R-3), a README.txt in a kit with no files (R-4). daan's, without its bio sheet and press
- * photo. WordPress-free: the caller resolves the attachments and the checked temp location; this writes
- * where it is told and reports skips rather than logging them.
+ * photo. WordPress-free: the caller resolves the attachments, the checked temp location and the README's
+ * words; this writes where it is told and reports skips rather than logging them.
  */
 final class KitArchiveBuilder
 {
@@ -23,9 +23,10 @@ final class KitArchiveBuilder
      * An entry without a label is named by its file.
      *
      * @param list<array{label: string, entries: list<array{ref: string, label: string, file: string, credit?: string}>}> $collections
+     * @param string $readme the empty kit's README text, in the kit's language
      * @return array{path: string, skipped: array<string, string>}|null null when no zip was written
      */
-    public static function build(string $path, array $collections): ?array
+    public static function build(string $path, array $collections, string $readme): ?array
     {
         $zip = new \ZipArchive();
 
@@ -41,7 +42,7 @@ final class KitArchiveBuilder
 
         // An archive with no entries is never written to disk, and the empty kit must still download.
         if ($zip->numFiles === 0) {
-            $zip->addFromString('README.txt', "This kit has no files yet.\n");
+            $zip->addFromString('README.txt', trim($readme) . "\n");
         }
 
         self::compress($zip);

@@ -50,8 +50,14 @@ class PressKitService
     private const DEFAULTS = [
         'base'   => 'press',
         'labels' => ['name' => 'Press kit'],
-        // The zip's folders and the company kit's logo row: each one word, or one per language.
-        'words'  => ['photos' => 'Photos', 'logos' => 'Logos', 'documents' => 'Documents', 'logo' => 'Logo'],
+        // The zip's folders, the company kit's logo row and an empty zip's README: each one text, or one per language.
+        'words'  => [
+            'photos'    => 'Photos',
+            'logos'     => 'Logos',
+            'documents' => 'Documents',
+            'logo'      => 'Logo',
+            'readme'    => 'This kit has no files yet.',
+        ],
     ];
 
     /** @var array<string, mixed> */
@@ -297,7 +303,7 @@ class PressKitService
     private function stream(array $kit, ?WP_Post $grant, string $path): ?false
     {
         $lang = (string) ntdst_pages()->language();
-        $archive = KitArchiveBuilder::build($path, $this->collections($kit, $lang));
+        $archive = KitArchiveBuilder::build($path, $this->collections($kit, $lang), $this->word('readme', $lang));
 
         if ($archive === null) {
             ntdst_log(self::LOG)->error('Press kit zip could not be opened for writing.', ['kit' => $kit['dutch_id']]);
