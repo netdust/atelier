@@ -78,7 +78,9 @@ final class PressKitModel
             return null;
         }
 
-        $dutch = $default === null ? $production : $this->productions->find((int) pll_get_post($production->ID, $default));
+        // A copy with no Dutch record is 0, and find(0) is whatever post is global: never asked.
+        $dutchId = $default === null ? (int) $production->ID : (int) pll_get_post($production->ID, $default);
+        $dutch = $dutchId > 0 ? $this->productions->find($dutchId) : null;
 
         if (!$dutch instanceof WP_Post) {
             return null;
