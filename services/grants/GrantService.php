@@ -228,7 +228,8 @@ class GrantService
 
     /**
      * R-2, R-5: the mail in the grant's language, its link the kit's page there when that copy is
-     * published. Plain text; the subject one line, whatever a title holds.
+     * published. Plain text, said so in its own header: `{title}` is entity-decoded into the body, so a
+     * site's content-type filter must not make it HTML. The subject one line, whatever a title holds.
      */
     private function mail(string $type, int $kit, WP_Post $grant): bool
     {
@@ -247,7 +248,9 @@ class GrantService
         ];
         $subject = trim((string) preg_replace('/\s+/u', ' ', strtr($this->mailText('subject', $lang), $words)));
 
-        return wp_mail((string) ($fields['recipient_email'] ?? ''), $subject, strtr($this->mailText('body', $lang), $words));
+        $body = strtr($this->mailText('body', $lang), $words);
+
+        return wp_mail((string) ($fields['recipient_email'] ?? ''), $subject, $body, ['Content-Type: text/plain; charset=UTF-8']);
     }
 
     /** A configured mail text in `$lang`, or the first language's where it has none. */
