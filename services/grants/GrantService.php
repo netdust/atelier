@@ -464,7 +464,7 @@ class GrantService
         // Behind the grant type's capability (R-1). A browser's request also needs WordPress's cookie
         // nonce: without it WordPress has made the caller a visitor before the permission is asked.
         $permission = static fn(): bool => self::mayManage();
-        $handlers =['issue' => $this->issue(...), 'send' => $this->send(...), 'revoke' => $this->revoke(...)];
+        $handlers = ['issue' => $this->issue(...), 'send' => $this->send(...), 'revoke' => $this->revoke(...)];
 
         foreach (self::KITS as $type) {
             foreach ($handlers as $action => $handler) {
