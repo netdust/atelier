@@ -192,12 +192,16 @@ class GrantService
         return new WP_REST_Response(['sent' => $sent, 'failed' => $failed, 'grants' => $this->rows($type, $kit)]);
     }
 
-    /** A revoke is refused for no kit's state: shutting a link is always safe. Only the route's own type. */
+    /**
+     * The named kit's own link, revoked. The kit need not be published: shutting a link is always
+     * safe, and a draft kit's links stay revocable.
+     */
     private function revoke(string $type, WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $grant = $this->grants->find(absint($request->get_param('grant_id')));
+        $kit = $this->kits->dutchOf($type, absint($request->get_param('post_id')));
+        $grant = $kit === null ? null : $this->grants->boundFor(absint($request->get_param('grant_id')), $type, $kit);
 
-        if (is_wp_error($grant) || ($grant->fields['content_type'] ?? '') !== $type) {
+        if ($grant === null) {
             return $this->refusal('unknown_grant', 404);
         }
 
@@ -206,8 +210,6 @@ class GrantService
         if (is_wp_error($revoked)) {
             return $revoked;
         }
-
-        $kit = (int) ($revoked->fields['content_id'] ?? 0);
 
         return new WP_REST_Response(['revoked' => (int) $revoked->ID, 'grants' => $this->rows($type, $kit)]);
     }
@@ -324,7 +326,10 @@ class GrantService
             return;
         }
 
-        add_meta_box(self::BOX, $this->label('panel'), fn(WP_Post $post) => $this->renderPanel($type, $post), $type, 'normal', 'default');
+        // WordPress prints a box title as given (template.php:1384).
+        $title = esc_html($this->label('panel'));
+
+        add_meta_box(self::BOX, $title, fn(WP_Post $post) => $this->renderPanel($type, $post), $type, 'normal', 'default');
     }
 
     /** Every value escaped where it lands; the token never printed. */
@@ -448,7 +453,7 @@ class GrantService
                 'lang'             => ['type' => 'string', 'validate_callback' => static fn(mixed $lang): bool => in_array($lang, Languages::codes(), true)],
             ],
             'send'   => $kit + ['grant_ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'required' => true]],
-            default  => ['grant_id' => ['type' => 'integer', 'required' => true]],
+            default  => $kit + ['grant_id' => ['type' => 'integer', 'required' => true]],
         };
     }
 

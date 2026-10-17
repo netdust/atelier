@@ -127,7 +127,7 @@
 			}
 		} else if (button.classList.contains('atelier-grants__revoke')) {
 			if (window.confirm(labels.confirm_revoke)) {
-				ask('revoke', { grant_id: id }, button, function () {
+				ask('revoke', { post_id: kit, grant_id: id }, button, function () {
 					return labels.revoked_done;
 				});
 			}

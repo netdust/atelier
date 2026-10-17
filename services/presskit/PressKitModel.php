@@ -89,9 +89,9 @@ final class PressKitModel
 
     /**
      * The Dutch record a kit binds its grants to, behind `$id` — that record or a copy of it — when it
-     * is a published production or the published company profile; null for anything else.
+     * is a production or the company profile, whatever its state; null for anything else.
      */
-    public function holder(string $postType, int $id): ?int
+    public function dutchOf(string $postType, int $id): ?int
     {
         $default = Languages::defaultFor($postType);
         $dutchId = $id > 0 && $default !== null ? (int) pll_get_post($id, $default) : $id;
@@ -101,10 +101,26 @@ final class PressKitModel
         }
 
         return match ($postType) {
-            ProductionModel::POST_TYPE => $this->productions->find($dutchId) instanceof WP_Post ? $dutchId : null,
-            ProfileModel::POST_TYPE    => ($this->profiles->current($default)['id'] ?? null) === $dutchId ? $dutchId : null,
+            ProductionModel::POST_TYPE => get_post_type($dutchId) === ProductionModel::POST_TYPE ? $dutchId : null,
+            ProfileModel::POST_TYPE    => $this->profiles->dutchId() === $dutchId ? $dutchId : null,
             default                    => null,
         };
+    }
+
+    /** dutchOf(), when that record is published: a kit that opens, so one a link may be issued or mailed for. */
+    public function holder(string $postType, int $id): ?int
+    {
+        $dutchId = $this->dutchOf($postType, $id);
+
+        if ($dutchId === null) {
+            return null;
+        }
+
+        $published = $postType === ProductionModel::POST_TYPE
+            ? $this->productions->find($dutchId) instanceof WP_Post
+            : ($this->profiles->current(Languages::defaultFor($postType))['id'] ?? null) === $dutchId;
+
+        return $published ? $dutchId : null;
     }
 
     /**

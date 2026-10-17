@@ -199,6 +199,14 @@ final class GrantRepository
         return ntdst_data()->get(GrantModel::POST_TYPE)->find($grantId, 'any');
     }
 
+    /** The grant `$grantId`, whatever its state, when it is bound to `$contentType` `$contentId`; null for any other. */
+    public function boundFor(int $grantId, string $contentType, int $contentId): ?WP_Post
+    {
+        $grant = $this->find($grantId);
+
+        return $grant instanceof WP_Post && self::boundTo($grant, $contentType, $contentId) ? $grant : null;
+    }
+
     /** The grant `$grantId` when it is live and opens `$contentType` `$contentId`; null for any other. */
     public function liveFor(int $grantId, string $contentType, int $contentId): ?WP_Post
     {
