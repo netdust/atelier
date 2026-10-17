@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\PressKit;
 
-use Atelier\Grants\GrantModel;
 use Atelier\Grants\GrantRepository;
+use Atelier\Profile\ProfileModel;
 use Atelier\Support\NoCache;
 use WP_Post;
 use WP_Query;
@@ -163,6 +163,28 @@ class PressKitService
     }
 
     /**
+     * A personal link to the kit `$dutchId` holds (R-5): its page in `$lang` when that copy is
+     * published, else the Dutch page, opened by `$token` — with the kit's title there. null when the
+     * record holds no published kit.
+     *
+     * @return array{url: string, title: string}|null
+     */
+    public function link(string $postType, int $dutchId, string $lang, string $token): ?array
+    {
+        $record = $this->model->inLanguage($postType, $dutchId, $lang);
+
+        if ($record === null || $token === '') {
+            return null;
+        }
+
+        $page = $postType === ProfileModel::POST_TYPE
+            ? $this->url(self::ROUTES['company'], [], $record['lang'] ?: null)
+            : $this->url(self::ROUTES['production'], ['slug' => $record['slug']], $record['lang'] ?: null);
+
+        return ['url' => add_query_arg(self::TOKEN, rawurlencode($token), $page), 'title' => $record['title']];
+    }
+
+    /**
      * Recognised by the round trip through core's own url(): the URL this route builds for the request's
      * slug is the URL requested, or this is no request to it.
      *
@@ -215,7 +237,7 @@ class PressKitService
             return true;
         }
 
-        // phpcs:ignore WordPress.Security -- a credential, compared byte-exact by verify(); never altered or output.
+        // phpcs:ignore WordPress.Security -- a credential, compared byte-exact by verify(); this raw request value is never altered or output.
         $token = $_GET[self::TOKEN] ?? '';
 
         if (!is_string($token) || $token === '') {
@@ -481,9 +503,6 @@ class PressKitService
     {
         $this->config = apply_filters('ntdst/service/presskit/config', self::DEFAULTS) + self::DEFAULTS;
         $this->config['words'] = (array) $this->config['words'] + self::DEFAULTS['words'];
-
-        // The records behind a kit's personal links, registered by the kit that reads them.
-        GrantModel::register();
 
         add_action('init', function (): void {
             ntdst_pages()

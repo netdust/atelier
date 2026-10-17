@@ -87,6 +87,64 @@ final class PressKitModel
         return self::kit('production', ProductionModel::POST_TYPE, $production, $dutch);
     }
 
+    /**
+     * The Dutch record a kit binds its grants to, behind `$id` — that record or a copy of it — when it
+     * is a published production or the published company profile; null for anything else.
+     */
+    public function holder(string $postType, int $id): ?int
+    {
+        $default = Languages::defaultFor($postType);
+        $dutchId = $id > 0 && $default !== null ? (int) pll_get_post($id, $default) : $id;
+
+        if ($dutchId <= 0) {
+            return null;
+        }
+
+        return match ($postType) {
+            ProductionModel::POST_TYPE => $this->productions->find($dutchId) instanceof WP_Post ? $dutchId : null,
+            ProfileModel::POST_TYPE    => ($this->profiles->current($default)['id'] ?? null) === $dutchId ? $dutchId : null,
+            default                    => null,
+        };
+    }
+
+    /**
+     * R-5: the record a personal link opens in `$lang` — its copy there when that is published, else
+     * the Dutch record — with that record's language, slug and title. null when `$dutchId` is no
+     * kit's Dutch record.
+     *
+     * @return array{lang: string, slug: string, title: string}|null
+     */
+    public function inLanguage(string $postType, int $dutchId, string $lang): ?array
+    {
+        if ($this->holder($postType, $dutchId) !== $dutchId) {
+            return null;
+        }
+
+        $default = (string) Languages::defaultFor($postType);
+        $lang = in_array($lang, Languages::codes(), true) ? $lang : $default;
+
+        if ($postType === ProfileModel::POST_TYPE) {
+            $profile = $this->profiles->current($lang === '' ? null : $lang);
+
+            return $profile === null ? null : [
+                'lang'  => $profile['id'] === $dutchId ? $default : $lang,
+                'slug'  => '',
+                'title' => $profile['name'],
+            ];
+        }
+
+        // No copy is 0, and get_post(0) is whatever post is global: never asked.
+        $copyId = $lang === $default ? 0 : (int) pll_get_post($dutchId, $lang);
+        $copy = $copyId > 0 ? $this->productions->find($copyId) : null;
+        $record = $copy instanceof WP_Post ? $copy : $this->productions->find($dutchId);
+
+        return $record instanceof WP_Post ? [
+            'lang'  => $record === $copy ? $lang : $default,
+            'slug'  => (string) $record->post_name,
+            'title' => (string) $record->post_title,
+        ] : null;
+    }
+
     /** One more download of the kit, on the Dutch record that holds its count. */
     public function countDownload(array $kit): true|WP_Error
     {

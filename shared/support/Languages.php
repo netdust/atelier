@@ -24,6 +24,12 @@ final class Languages
         return is_string($lang) && $lang !== '' ? $lang : null;
     }
 
+    /** @return list<string> the site's languages, by Polylang slug; none without Polylang */
+    public static function codes(): array
+    {
+        return function_exists('pll_languages_list') ? array_values(array_map('strval', (array) pll_languages_list())) : [];
+    }
+
     /**
      * Which of a slug's holders is in `$lang` — the first holder when `$lang` is null, a type Polylang
      * does not translate. Copies carry their Dutch record's slug, and a slug query is singular:

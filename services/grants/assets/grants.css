@@ -1,0 +1,7 @@
+/* The personal-links panel; WordPress's .button sets display, so [hidden] needs saying. */
+.atelier-grants [hidden] { display: none !important; }
+.atelier-grants__table { margin: 0 0 1em; }
+.atelier-grants__address { word-break: break-all; }
+.atelier-grants__accesses { text-align: right; }
+.atelier-grants__actions { white-space: nowrap; text-align: right; }
+.atelier-grants__notice:empty { display: none; }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atelier\Grants;
 
+use Atelier\Support\Languages;
 use WP_Error;
 use WP_Post;
 
@@ -156,6 +157,69 @@ final class GrantRepository
     }
 
     /**
+     * Every grant issued for `$contentType` `$contentId`, newest first and at most
+     * MAX_GRANTS_PER_CONTENT, live and revoked alike: who was let in, and who no longer is.
+     *
+     * @return list<WP_Post>
+     */
+    public function forContent(string $contentType, int $contentId): array
+    {
+        if ($contentType === '' || $contentId <= 0) {
+            return [];
+        }
+
+        $model = ntdst_data()->get(GrantModel::POST_TYPE);
+        $rows = $model
+            ->where('post_status', 'publish')
+            ->where('content_type', $contentType)
+            ->where('content_id', $contentId)
+            ->orderBy('ID', 'DESC')
+            ->limit(self::MAX_GRANTS_PER_CONTENT)
+            ->get();
+        $grants = [];
+
+        foreach ($rows as $row) {
+            $grant = (int) ($row['id'] ?? 0) > 0 ? $model->find((int) $row['id']) : null;
+
+            if ($grant instanceof WP_Post && self::boundTo($grant, $contentType, $contentId)) {
+                $grants[] = $grant;
+            }
+        }
+
+        return $grants;
+    }
+
+    /** A grant record whatever its state; a WP_Error when `$grantId` names none — 0 included, never the global post. */
+    public function find(int $grantId): WP_Post|WP_Error
+    {
+        if ($grantId <= 0) {
+            return new WP_Error('invalid_grant', 'A grant id is required.', ['status' => 400]);
+        }
+
+        return ntdst_data()->get(GrantModel::POST_TYPE)->find($grantId, 'any');
+    }
+
+    /** The grant `$grantId` when it is live and opens `$contentType` `$contentId`; null for any other. */
+    public function liveFor(int $grantId, string $contentType, int $contentId): ?WP_Post
+    {
+        $grant = $grantId > 0 ? ntdst_data()->get(GrantModel::POST_TYPE)->find($grantId) : null;
+
+        return $grant instanceof WP_Post && self::isLive($grant) && self::boundTo($grant, $contentType, $contentId) ? $grant : null;
+    }
+
+    /** Its link was mailed just now (UTC, `Y-m-d H:i:s`). */
+    public function markSent(WP_Post $grant): true|WP_Error
+    {
+        return ntdst_data()->get(GrantModel::POST_TYPE)->updateMeta((int) $grant->ID, 'last_sent', current_time('mysql', true));
+    }
+
+    /** Issued and not revoked: `active` exactly, read as an allowlist. */
+    public static function isLive(WP_Post $grant): bool
+    {
+        return $grant->post_status === 'publish' && (string) ($grant->fields['status'] ?? '') === self::STATUS_ACTIVE;
+    }
+
+    /**
      * One use of a grant verify() admitted. It decides nothing, and never fails the request: an unrecorded
      * use is logged. Its log lines name the grant and the kit, never the address, the token or an IP (D4).
      */
@@ -190,25 +254,27 @@ final class GrantRepository
     /** The four questions, each answered yes: this token byte for byte, issued, live, bound to this kit. */
     private static function admits(WP_Post $grant, string $presented, string $contentType, int $contentId): bool
     {
-        $fields = (array) $grant->fields;
-        $stored = (string) ($fields['token'] ?? '');
-        $boundType = (string) ($fields['content_type'] ?? '');
-        $boundId = (int) ($fields['content_id'] ?? 0);
+        $stored = (string) ($grant->fields['token'] ?? '');
 
         return $stored !== ''
             && hash_equals($stored, $presented)
-            && $grant->post_status === 'publish'
-            && (string) ($fields['status'] ?? '') === self::STATUS_ACTIVE
-            && $boundType !== ''
-            && $boundId > 0
-            && $boundType === $contentType
-            && $boundId === $contentId;
+            && self::isLive($grant)
+            && self::boundTo($grant, $contentType, $contentId);
+    }
+
+    /** Bound to exactly this type and id; a row that lost either opens nothing. */
+    private static function boundTo(WP_Post $grant, string $contentType, int $contentId): bool
+    {
+        $boundType = (string) ($grant->fields['content_type'] ?? '');
+        $boundId = (int) ($grant->fields['content_id'] ?? 0);
+
+        return $boundType !== '' && $boundId > 0 && $boundType === $contentType && $boundId === $contentId;
     }
 
     /** A language the site has, its default when none is named; null for any other. */
     private static function language(?string $lang): ?string
     {
-        $languages = function_exists('pll_languages_list') ? array_map('strval', (array) pll_languages_list()) : [];
+        $languages = Languages::codes();
 
         if ($languages === []) {
             return $lang === null || $lang === '' ? '' : null;
@@ -233,13 +299,12 @@ final class GrantRepository
 
         foreach ($candidates as $candidate) {
             $grant = (int) ($candidate['id'] ?? 0) > 0 ? $model->find((int) $candidate['id']) : null;
-            $fields = $grant instanceof WP_Post ? (array) $grant->fields : [];
 
             if (
-                ($fields['status'] ?? '') === self::STATUS_ACTIVE
-                && ($fields['recipient_email'] ?? '') === $address
-                && ($fields['content_type'] ?? '') === $contentType
-                && (int) ($fields['content_id'] ?? 0) === $contentId
+                $grant instanceof WP_Post
+                && self::isLive($grant)
+                && ($grant->fields['recipient_email'] ?? '') === $address
+                && self::boundTo($grant, $contentType, $contentId)
             ) {
                 return $grant;
             }
