@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Atelier\Production;
 
 use Atelier\Models\PersonModel;
+use Atelier\Support\DownloadCount;
+use Atelier\Support\Languages;
 use NTDST_FieldTypes;
 use WP_Error;
 use WP_Post;
@@ -17,9 +19,9 @@ defined('ABSPATH') || exit;
  */
 final class ProductionRepository
 {
-    public function find(int $id): WP_Post|WP_Error
+    public function find(int $id, string $status = 'publish'): WP_Post|WP_Error
     {
-        return ntdst_data()->get(ProductionModel::POST_TYPE)->find($id);
+        return ntdst_data()->get(ProductionModel::POST_TYPE)->find($id, $status);
     }
 
     public function create(array $data): WP_Post|WP_Error
@@ -32,17 +34,27 @@ final class ProductionRepository
         return ntdst_data()->get(ProductionModel::POST_TYPE)->update($id, $data);
     }
 
-    /**
-     * Published only. An empty slug is refused outright: WP_Query ignores an empty `name` and would
-     * return the first published row.
-     */
-    public function findPublishedBySlug(string $slug): ?WP_Post
+    public function countDownload(int $id): true|WP_Error
     {
-        if ($slug === '') {
+        return DownloadCount::increment(ntdst_data()->get(ProductionModel::POST_TYPE), $id);
+    }
+
+    /**
+     * Published only, in Polylang's `$lang` — a copy may carry its Dutch record's slug — or the first
+     * published holder of the slug when `$lang` is null. An empty slug is refused outright: WP_Query
+     * ignores an empty `name` and would return the first published row.
+     */
+    public function findPublishedBySlug(string $slug, ?string $lang = null): ?WP_Post
+    {
+        if ($slug === '' || $lang === '') {
             return null;
         }
 
-        return ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->first();
+        $holders = ntdst_data()->get(ProductionModel::POST_TYPE)->where('post_name', $slug)->where('post_status', 'publish')->all();
+        $id = Languages::holderIn($holders, $lang);
+        $post = $id === null ? null : $this->find($id);
+
+        return $post instanceof WP_Post ? $post : null;
     }
 
     /**

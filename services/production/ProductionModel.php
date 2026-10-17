@@ -6,6 +6,7 @@ namespace Atelier\Production;
 
 use Atelier\Models\OrganisationModel;
 use Atelier\Models\PersonModel;
+use Atelier\Support\DownloadCount;
 use Atelier\Support\PublicModel;
 use Atelier\Support\Vocabulary;
 
@@ -81,6 +82,23 @@ final class ProductionModel
             ],
             'coproducers' => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
             'funders'     => ['type' => 'relation', 'post_type' => OrganisationModel::POST_TYPE, 'multiple' => true],
+            ...self::kit(),
+        ];
+    }
+
+    /** The press kit, as the profile's: the text translates, every cell and fact follows the Dutch record. */
+    private static function kit(): array
+    {
+        $fact = static fn(string $type, string $label): array => ['type' => $type, 'label' => $label, 'translate' => false];
+        $files = ['type' => 'repeater', 'sub_fields' => ['name' => $fact('text', 'Name'), 'file' => $fact('file', 'File')]];
+
+        return [
+            'kit_public'         => ['type' => 'bool'],
+            'kit_text'           => ['type' => 'html'],
+            'kit_photos'         => ['type' => 'repeater', 'sub_fields' => ['image' => $fact('image', 'Image'), 'credit' => $fact('text', 'Credit')]],
+            'kit_logos'          => $files,
+            'kit_documents'      => $files,
+            'kit_download_count' => DownloadCount::field(),
         ];
     }
 

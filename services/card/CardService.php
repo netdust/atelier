@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Card;
 
+use Atelier\Support\Asset;
+use Atelier\Support\NoCache;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -74,8 +76,8 @@ class CardService
         $page = [
             'company' => $this->model->company()['name'] ?: get_bloginfo('name'),
             'lang'    => self::language(),
-            'css'     => $this->assetUrl('card.css'),
-            'js'      => $this->assetUrl('card.js'),
+            'css'     => Asset::url(__FILE__, 'assets/card.css'),
+            'js'      => Asset::url(__FILE__, 'assets/card.js'),
         ];
         $template = \NTDST_Template_Loader::page('chooser', ['people' => $people, 'page' => $page], [__DIR__ . '/templates']);
 
@@ -83,7 +85,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
+        $this->emitHeaders([self::NOINDEX, ...NoCache::headers(), self::CSP]);
 
         return $template;
     }
@@ -103,7 +105,7 @@ class CardService
             return false;
         }
 
-        $this->emitHeaders([self::NOINDEX, ...self::noCache(), self::CSP]);
+        $this->emitHeaders([self::NOINDEX, ...NoCache::headers(), self::CSP]);
 
         return $template;
     }
@@ -134,7 +136,7 @@ class CardService
         // Not ntdst_response()->download(): it exits, and these seams are what the tests capture.
         $this->emitHeaders([
             ...\NTDST_Response::downloadHeaders(strlen($body), self::vcardFilename($card['name']), 'text/vcard; charset=utf-8', $disposition),
-            ...self::noCache(),
+            ...NoCache::headers(),
             self::NOINDEX,
         ]);
         $this->emitBody($body);
@@ -240,8 +242,8 @@ class CardService
             'scope'      => self::scope($card['slug']),
             'chooser'    => home_url(trailingslashit(self::PATH)),
             'lang'       => self::language(),
-            'css'        => $this->assetUrl('card.css'),
-            'js'         => $this->assetUrl('card.js'),
+            'css'        => Asset::url(__FILE__, 'assets/card.css'),
+            'js'         => Asset::url(__FILE__, 'assets/card.js'),
         ];
     }
 
@@ -271,7 +273,7 @@ class CardService
         $icons = [];
 
         foreach (self::ICONS as $file => [$size, $purpose]) {
-            $icons[] = self::icon($this->assetUrl('icons/' . $file), $size, $purpose);
+            $icons[] = self::icon(Asset::url(__FILE__, 'assets/icons/' . $file), $size, $purpose);
         }
 
         return $icons;
@@ -288,7 +290,7 @@ class CardService
     /** R-3: iOS takes the home-screen icon from the page, never from the manifest. */
     private function touchIcon(): string
     {
-        return has_site_icon() ? get_site_icon_url(180) : $this->assetUrl('icons/apple-touch-icon.png');
+        return has_site_icon() ? get_site_icon_url(180) : Asset::url(__FILE__, 'assets/icons/apple-touch-icon.png');
     }
 
     /** @return list<string> the card page and what it needs to draw itself — this card's own URLs, same-origin only */
@@ -296,8 +298,8 @@ class CardService
     {
         $urls = [
             self::url($card['slug']),
-            $this->assetUrl('card.css'),
-            $this->assetUrl('card.js'),
+            Asset::url(__FILE__, 'assets/card.css'),
+            Asset::url(__FILE__, 'assets/card.js'),
             (string) $card['photo'],
             (string) $card['company']['logo'],
             $this->touchIcon(),
@@ -321,40 +323,17 @@ class CardService
         return str_replace('_', '-', is_string($locale) && $locale !== '' ? $locale : get_locale());
     }
 
-    /** Versioned by filemtime() so an edit invalidates itself. */
-    private function assetUrl(string $file): string
-    {
-        return add_query_arg('ver', (string) filemtime(__DIR__ . '/assets/' . $file), plugins_url('assets/' . $file, __FILE__));
-    }
-
     /** A whole file the browser fetches itself — never cached stale, never indexed. */
     private function emitFile(string $type, string $body, string ...$headers): void
     {
         $this->emitHeaders([
             'Content-Type: ' . $type,
             'Content-Length: ' . strlen($body),
-            ...self::noCache(),
+            ...NoCache::headers(),
             self::NOINDEX,
             ...$headers,
         ]);
         $this->emitBody($body);
-    }
-
-    /**
-     * WordPress's own no-cache set, so a worker's network-first fetch and the chooser never see an hour-old copy.
-     *
-     * @return list<string>
-     */
-    private static function noCache(): array
-    {
-        $lines = [];
-
-        // Last-Modified arrives as false, WordPress's "remove it": nothing on these routes sends one.
-        foreach (array_filter(wp_get_nocache_headers()) as $name => $value) {
-            $lines[] = $name . ': ' . $value;
-        }
-
-        return $lines;
     }
 
     /**

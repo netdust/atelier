@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Atelier\Profile;
 
+use Atelier\Support\Attachment;
+use Atelier\Support\DownloadCount;
 use Atelier\Support\Languages;
 use Atelier\Support\WebUrl;
 use ntdst\baseline\services\polylang\SharedSlugs;
@@ -61,6 +63,11 @@ final class ProfileRepository
         return $this->shape(($copy ? $this->published((int) $copy) : null) ?? $this->published($dutch));
     }
 
+    public function countDownload(int $id): true|WP_Error
+    {
+        return DownloadCount::increment(ntdst_data()->get(ProfileModel::POST_TYPE), $id);
+    }
+
     private function firstPublished(): ?WP_Post
     {
         return ntdst_data()->get(ProfileModel::POST_TYPE)->orderBy('ID', 'ASC')->first();
@@ -87,6 +94,8 @@ final class ProfileRepository
         return [
             'id'                 => (int) $post->ID,
             'name'               => (string) $post->post_title,
+            // A password asked of a reader: the company's kit stays shut while it is set.
+            'protected'          => (string) $post->post_password !== '',
             'legal_name'         => $text('legal_name'),
             'tagline'            => $text('tagline'),
             'bio_short'          => $text('bio_short'),
@@ -163,12 +172,10 @@ final class ProfileRepository
         return $kept;
     }
 
-    /** An id read back only when it still names an attachment. */
+    /** An id read back only while its attachment is live. */
     private static function attachment(mixed $id): ?int
     {
-        $id = absint($id);
-
-        return $id > 0 && get_post_type($id) === 'attachment' ? $id : null;
+        return Attachment::url($id) === null ? null : absint($id);
     }
 
     /** Published, in the default language; the title is the company name, and no user owns it. */
