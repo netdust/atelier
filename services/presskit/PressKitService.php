@@ -412,7 +412,8 @@ class PressKitService
     /**
      * An empty file for the zip, checked where tempnam() put it: it falls back to the system's temp
      * directory unasked, and get_temp_dir()'s own last resort is WP_CONTENT_DIR, inside the webroot.
-     * Within uploads, the content directory or WordPress itself, it is removed and nothing is built.
+     * Within uploads, the content directory, the docroot above it (Bedrock's `web/`) or WordPress itself,
+     * it is removed and nothing is built.
      */
     private function tempFile(): ?string
     {
@@ -422,7 +423,9 @@ class PressKitService
             return null;
         }
 
-        foreach ([(string) (wp_get_upload_dir()['basedir'] ?? ''), WP_CONTENT_DIR, ABSPATH] as $served) {
+        $webServed = [(string) (wp_get_upload_dir()['basedir'] ?? ''), WP_CONTENT_DIR, dirname(WP_CONTENT_DIR), ABSPATH];
+
+        foreach ($webServed as $served) {
             if ($served !== '' && self::isWithin(dirname($path), $served)) {
                 self::remove($path);
                 ntdst_log(self::LOG)->error('Refusing to build a press kit zip in a web-served directory.', ['directory' => dirname($path)]);
