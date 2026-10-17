@@ -8,16 +8,20 @@ defined('ABSPATH') || exit;
 
 /**
  * Makes an editor's file name safe as a zip entry and as the Content-Disposition filename (threat
- * model attack 9). daan's, unchanged. Pure: no WordPress, no globals, no filesystem.
+ * model attack 9). daan's, keeping more of what an editor types — apostrophes, commas, `&`, `!`, dashes —
+ * with runs of whitespace as one space. Pure: no WordPress, no globals, no filesystem.
  */
 final class ArchiveNameSanitizer
 {
     /**
      * Anything not matched survives; everything else is dropped. An allow-list because a deny-list would
-     * have to enumerate every future direction override, separator dialect and control byte. `\p{M}` is
-     * load-bearing: a decomposed `Daniël` carries its diaeresis as a combining mark.
+     * have to enumerate every future direction override, separator dialect and control byte: `"`, `\`,
+     * `/`, and every \p{Cc} and \p{Cf} stay out. `\p{M}` is load-bearing: a decomposed `Daniël` carries
+     * its diaeresis as a combining mark. Whitespace survives here only to be collapsed next.
      */
-    private const SAFE_CHARACTERS = '/[^\p{L}\p{M}\p{N} .\-_()]/u';
+    private const SAFE_CHARACTERS = "/[^\\p{L}\\p{M}\\p{N}\\p{Pd}\\s\\p{Z}._()'\u{2018}\u{2019},&!]/u";
+
+    private const WHITESPACE = '/[\s\p{Z}]+/u';
 
     private const FALLBACK_STEM = 'file';
 
@@ -31,8 +35,8 @@ final class ArchiveNameSanitizer
         // the strip removes the separators, so `/etc/passwd` stripped first is `etcpasswd`.
         $segment = $this->lastPathSegment(mb_scrub($candidate, 'UTF-8'));
 
-        // Fail closed to the fallback rather than to the raw name.
-        $safe = preg_replace(self::SAFE_CHARACTERS, '', $segment) ?? '';
+        // Fail closed to the fallback rather than to the raw name. A CR, LF or tab becomes a space.
+        $safe = preg_replace(self::WHITESPACE, ' ', preg_replace(self::SAFE_CHARACTERS, '', $segment) ?? '') ?? '';
 
         [$stem, $extension] = $this->splitExtension($safe);
 

@@ -65,8 +65,14 @@ final class ProfileRepository
     public function countDownload(int $id): true|WP_Error
     {
         $model = ntdst_data()->get(ProfileModel::POST_TYPE);
+        $record = $model->find($id);
 
-        return $model->updateMeta($id, 'kit_download_count', absint($model->getMeta($id, 'kit_download_count')) + 1);
+        // Publish-only: an unpublished record's count would read back as nothing, and restart at 1.
+        if (is_wp_error($record)) {
+            return $record;
+        }
+
+        return $model->updateMeta($id, 'kit_download_count', absint($record->fields['kit_download_count'] ?? 0) + 1);
     }
 
     private function firstPublished(): ?WP_Post

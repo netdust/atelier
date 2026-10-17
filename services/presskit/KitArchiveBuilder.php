@@ -18,7 +18,7 @@ final class KitArchiveBuilder
 
     /**
      * @param list<array{label: string, entries: list<array{ref: string, label: string, file: string, credit?: string}>}> $collections
-     * @return array{path: string, skipped: array<string, string>}|null null when nothing was written
+     * @return array{path: string, skipped: array<string, string>}|null null when no zip was written
      */
     public static function build(string $path, array $collections): ?array
     {
@@ -39,7 +39,10 @@ final class KitArchiveBuilder
             $zip->addFromString('README.txt', "This kit has no files yet.\n");
         }
 
-        $zip->close();
+        // libzip writes, and reads every source, only now: a failure here leaves no zip to send.
+        if (!$zip->close()) {
+            return null;
+        }
 
         return ['path' => $path, 'skipped' => $skipped];
     }
@@ -60,9 +63,16 @@ final class KitArchiveBuilder
         $credits = '';
 
         foreach ($collection['entries'] as $entry) {
-            // An attachment's bytes can be deleted with its row left behind: a shorter zip, never none.
+            // An attachment's bytes can be deleted, or shut, with its row left behind: a shorter zip,
+            // never none — libzip would only find out at close(), and fail the whole zip.
             if (!is_file($entry['file'])) {
                 $skipped[$entry['ref']] = 'has no file on disk';
+
+                continue;
+            }
+
+            if (!is_readable($entry['file'])) {
+                $skipped[$entry['ref']] = 'cannot be read';
 
                 continue;
             }

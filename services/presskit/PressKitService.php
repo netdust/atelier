@@ -234,17 +234,14 @@ class PressKitService
         $size = filesize($path);
         $handle = fopen($path, 'rb');
 
-        if ($size === false || $handle === false) {
-            ntdst_log(self::LOG)->error('Press kit zip could not be read back.', ['kit' => $kit['dutch_id']]);
+        // A zip holds at least its README: an empty file is a failed build, never a download.
+        if ($size === false || $size === 0 || $handle === false) {
+            ntdst_log(self::LOG)->error('Press kit zip is empty or could not be read back.', ['kit' => $kit['dutch_id']]);
 
             return false;
         }
 
-        $counted = $this->model->countDownload($kit);
-
-        if (is_wp_error($counted)) {
-            ntdst_log(self::LOG)->error('Press kit download not counted: ' . $counted->get_error_message(), ['kit' => $kit['dutch_id']]);
-        }
+        $this->count($kit);
 
         $name = (new ArchiveNameSanitizer())->sanitize($kit['title'] . '.zip');
         $this->emitHeaders([
@@ -255,6 +252,22 @@ class PressKitService
         $this->emitFile($handle);
 
         return null;
+    }
+
+    /** A HEAD is answered as a GET, the same zip built so its length agrees, but it downloads nothing. */
+    private function count(array $kit): void
+    {
+        $method = strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'))));
+
+        if ($method === 'HEAD') {
+            return;
+        }
+
+        $counted = $this->model->countDownload($kit);
+
+        if (is_wp_error($counted)) {
+            ntdst_log(self::LOG)->error('Press kit download not counted: ' . $counted->get_error_message(), ['kit' => $kit['dutch_id']]);
+        }
     }
 
     /**
@@ -290,24 +303,33 @@ class PressKitService
     }
 
     /**
-     * An empty file for the zip. get_temp_dir()'s last resort is WP_CONTENT_DIR, inside the webroot, so
-     * the place is checked: within uploads or the content directory, nothing is built.
+     * An empty file for the zip, checked where tempnam() put it: it falls back to the system's temp
+     * directory unasked, and get_temp_dir()'s own last resort is WP_CONTENT_DIR, inside the webroot.
+     * Within uploads, the content directory or WordPress itself, it is removed and nothing is built.
      */
     private function tempFile(): ?string
     {
-        $directory = get_temp_dir();
+        $path = tempnam($this->tempDirectory(), self::TEMP_PREFIX);
 
-        foreach ([(string) (wp_get_upload_dir()['basedir'] ?? ''), WP_CONTENT_DIR] as $served) {
-            if ($served !== '' && self::isWithin($directory, $served)) {
-                ntdst_log(self::LOG)->error('Refusing to build a press kit zip in a web-served directory.', ['directory' => $directory]);
+        if (!is_string($path) || $path === '') {
+            return null;
+        }
+
+        foreach ([(string) (wp_get_upload_dir()['basedir'] ?? ''), WP_CONTENT_DIR, ABSPATH] as $served) {
+            if ($served !== '' && self::isWithin(dirname($path), $served)) {
+                self::remove($path);
+                ntdst_log(self::LOG)->error('Refusing to build a press kit zip in a web-served directory.', ['directory' => dirname($path)]);
 
                 return null;
             }
         }
 
-        $path = tempnam($directory, self::TEMP_PREFIX);
+        return $path;
+    }
 
-        return is_string($path) && $path !== '' ? $path : null;
+    protected function tempDirectory(): string
+    {
+        return get_temp_dir();
     }
 
     /** The directory itself or one below it — separator-aware: /x/uploads-public is not inside /x/uploads. */
