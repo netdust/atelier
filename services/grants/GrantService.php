@@ -419,7 +419,7 @@ class GrantService
 
         if (Languages::codes() !== []) {
             echo '<label for="atelier-grants-lang">' . esc_html($this->label('lang')) . '</label> '
-                . '<select id="atelier-grants-lang" class="atelier-grants__lang">';
+                . '<select id="atelier-grants-lang" class="atelier-grants__language">';
 
             foreach (Languages::codes() as $code) {
                 echo '<option value="' . esc_attr($code) . '"' . selected($code, $default, false) . '>' . esc_html(strtoupper($code)) . '</option>';

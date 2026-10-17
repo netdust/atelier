@@ -23,7 +23,7 @@
 	var sendAll = panel.querySelector('.atelier-grants__send-all');
 	var notice = panel.querySelector('.atelier-grants__notice');
 	var addresses = panel.querySelector('.atelier-grants__addresses');
-	var language = panel.querySelector('.atelier-grants__lang');
+	var language = panel.querySelector('.atelier-grants__language');
 	var columns = ['address', 'lang', 'created', 'sent', 'accesses', 'status'];
 
 	function say(text) {
