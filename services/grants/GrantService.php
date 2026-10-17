@@ -456,8 +456,10 @@ class GrantService
         $this->config['labels'] = (array) $this->config['labels'] + self::DEFAULTS['labels'];
         $this->config['mail'] = (array) $this->config['mail'] + self::DEFAULTS['mail'];
 
-        // The one registrar of the records behind a kit's personal links.
+        // The one registrar of the records behind a kit's personal links, and of their addresses in
+        // WordPress's personal-data tools.
         GrantModel::register();
+        (new GrantPrivacy($this->grants))->register();
 
         // Behind the grant type's capability (R-1). A browser's request also needs WordPress's cookie
         // nonce: without it WordPress has made the caller a visitor before the permission is asked.

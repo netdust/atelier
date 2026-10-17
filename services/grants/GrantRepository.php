@@ -189,6 +189,60 @@ final class GrantRepository
         return $grants;
     }
 
+    /**
+     * The grants issued to `$address`, whatever their state, oldest first, `$perPage` to a page — what
+     * WordPress's personal-data tools export and erase. The address is a mailbox's identity in lower case,
+     * as issue() keeps it; the collation only narrows, the stored address decides.
+     *
+     * @return array{grants: list<WP_Post>, more: bool} `more`: a page follows this one
+     */
+    public function forRecipient(string $address, int $page, int $perPage): array
+    {
+        $address = strtolower(trim($address));
+
+        if (!is_email($address)) {
+            return ['grants' => [], 'more' => false];
+        }
+
+        $model = ntdst_data()->get(GrantModel::POST_TYPE);
+        $found = $model
+            ->where('post_status', 'any')
+            ->where('recipient_email', $address)
+            ->orderBy('ID', 'ASC')
+            ->paginate($page, $perPage);
+        $grants = [];
+
+        foreach ($found['data'] as $row) {
+            $grant = (int) ($row['id'] ?? 0) > 0 ? $model->find((int) $row['id'], 'any') : null;
+
+            if ($grant instanceof WP_Post && ($grant->fields['recipient_email'] ?? '') === $address) {
+                $grants[] = $grant;
+            }
+        }
+
+        $pages = $found['pagination'];
+
+        return ['grants' => $grants, 'more' => $pages['current_page'] < $pages['total_pages']];
+    }
+
+    /**
+     * The grant revoked and its address replaced by WordPress's anonymised one: the record stays as a
+     * kit's link that was issued, used and shut, with no one named.
+     */
+    public function anonymise(int $grantId): WP_Post|WP_Error
+    {
+        $grant = $this->find($grantId);
+
+        if (is_wp_error($grant)) {
+            return $grant;
+        }
+
+        return ntdst_data()->get(GrantModel::POST_TYPE)->update($grantId, [
+            'status'          => self::STATUS_REVOKED,
+            'recipient_email' => wp_privacy_anonymize_data('email'),
+        ]);
+    }
+
     /** A grant record whatever its state; a WP_Error when `$grantId` names none — 0 included, never the global post. */
     public function find(int $grantId): WP_Post|WP_Error
     {
