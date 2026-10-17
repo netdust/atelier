@@ -186,6 +186,12 @@ class PressKitService
                 $kit = $this->kit($route, $params);
                 $opens = $kit === null ? false : $this->gate($kit);
 
+                // The holder's zip opens with the same grant: its stored token, never the request's query.
+                if ($opens instanceof WP_Post) {
+                    $token = rawurlencode((string) ($opens->fields['token'] ?? ''));
+                    $kit['download_url'] = add_query_arg(self::TOKEN, $token, $kit['download_url']);
+                }
+
                 return [
                     'route'    => $route,
                     'kit'      => $kit,

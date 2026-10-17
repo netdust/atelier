@@ -38,21 +38,24 @@ final class GrantModel
         ]);
     }
 
+    /** Every field a fact: none is ever a translator's text, so no grant write starts a re-translation. */
     private static function fields(): array
     {
+        $fact = static fn(string $type): array => ['type' => $type, 'translate' => false];
+
         return [
-            'token'           => ['type' => 'text'],
-            'recipient_email' => ['type' => 'email'],
-            'content_type'    => ['type' => 'text'],
-            'content_id'      => ['type' => 'int'],
+            'token'           => $fact('text'),
+            'recipient_email' => $fact('email'),
+            'content_type'    => $fact('text'),
+            'content_id'      => $fact('int'),
             // Only `active` admits; revoke() writes `revoked`.
-            'status'          => ['type' => 'text'],
-            'access_count'    => ['type' => 'int'],
+            'status'          => $fact('text'),
+            'access_count'    => $fact('int'),
             // UTC, `Y-m-d H:i:s`.
-            'last_accessed'   => ['type' => 'text'],
-            'last_sent'       => ['type' => 'text'],
+            'last_accessed'   => $fact('text'),
+            'last_sent'       => $fact('text'),
             // The language the link was issued in (R-2): its mail and its URL.
-            'lang'            => ['type' => 'text'],
+            'lang'            => $fact('text'),
         ];
     }
 }

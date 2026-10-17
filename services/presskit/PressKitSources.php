@@ -79,6 +79,8 @@ final class PressKitSources
                     'photos'     => $list('PressKitPhoto', 'Photos'),
                     'logos'      => $list('PressKitFile', 'Logos'),
                     'documents'  => $list('PressKitFile', 'Documents'),
+                    // The zip; on a token-opened kit it carries its holder's token.
+                    'download'   => $string('Download'),
                     // YOOtheme's own type: the layout binds the production's facts as single-production does.
                     'production' => [
                         'type'       => 'Production',
@@ -117,6 +119,7 @@ final class PressKitSources
             'photos'    => array_map(static fn(array $photo): array => ['url' => esc_url($photo['url']), 'credit' => esc_html($photo['credit'])], $kit['photos']),
             'logos'     => array_map($named, $kit['logos']),
             'documents' => array_map($named, $kit['documents']),
+            'download'  => esc_url($kit['download_url']),
         ];
     }
 

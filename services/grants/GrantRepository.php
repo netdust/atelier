@@ -88,9 +88,10 @@ final class GrantRepository
 
     /**
      * One live grant for `$email` on `$contentType` `$contentId`, in `$lang` (the site's default when
-     * null). Issuing again while one is live returns it: a second token would be one nobody revokes.
-     * The address and the kit are held while that is checked and written, so two editors issuing
-     * together mint once; when the hold cannot be had, nothing is minted.
+     * null). One mailbox is one grant, so the address is kept in lower case (Ruling M-1). Issuing again
+     * while one is live returns it with its token — a second token would be one nobody revokes — in the
+     * `$lang` named this time, if one is (Ruling M-2). The address and the kit are held while that is
+     * checked and written, so two editors issuing together mint once; without the hold, nothing is.
      */
     public function issue(string $email, string $contentType, int $contentId, ?string $lang = null): WP_Post|WP_Error
     {
@@ -102,10 +103,13 @@ final class GrantRepository
             return new WP_Error('invalid_recipient', 'A deliverable recipient address is required.', ['status' => 400]);
         }
 
+        $address = strtolower($address);
+
         if ($contentType === '' || sanitize_key($contentType) !== $contentType || $contentId <= 0) {
             return new WP_Error('invalid_content', 'A grant names the type and the id of what it opens.', ['status' => 400]);
         }
 
+        $named = $lang !== null;
         $lang = self::language($lang);
 
         if ($lang === null) {
@@ -119,7 +123,13 @@ final class GrantRepository
         }
 
         try {
-            return $this->live($address, $contentType, $contentId) ?? $this->create($address, $contentType, $contentId, $lang);
+            $live = $this->live($address, $contentType, $contentId);
+
+            if ($live === null) {
+                return $this->create($address, $contentType, $contentId, $lang);
+            }
+
+            return $named ? $this->inLanguage($live, $lang) : $live;
         } finally {
             $this->release($lock);
         }
@@ -236,6 +246,19 @@ final class GrantRepository
         }
 
         return null;
+    }
+
+    /** The live grant, its link now in `$lang`; the token stays. */
+    private function inLanguage(WP_Post $grant, string $lang): WP_Post|WP_Error
+    {
+        if (($grant->fields['lang'] ?? '') === $lang) {
+            return $grant;
+        }
+
+        $model = ntdst_data()->get(GrantModel::POST_TYPE);
+        $written = $model->updateMeta((int) $grant->ID, 'lang', $lang);
+
+        return is_wp_error($written) ? $written : $model->find((int) $grant->ID);
     }
 
     private function create(string $address, string $contentType, int $contentId, string $lang): WP_Post|WP_Error
