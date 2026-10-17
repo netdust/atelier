@@ -30,6 +30,12 @@ class PressKitService
 
     private const TOKEN = 'token';
 
+    /** The query vars core's rewrite writes for a kit route; public, so a request can name them itself. */
+    private const ROUTE_VARS = ['ntdst_page', 'ntdst_p_slug'];
+
+    /** A kit is read: HEAD is GET without the body (RFC 9110 §9.3.2). */
+    private const READS = ['GET', 'HEAD'];
+
     /**
      * `base` is one word, or one per language; the order is the rewrite order — the literal routes
      * first, or `/{base}/:slug/` would answer `/{base}/download/`.
@@ -186,14 +192,17 @@ class PressKitService
 
     /**
      * Recognised by the round trip through core's own url(): the URL this route builds for the request's
-     * slug is the URL requested, or this is no request to it.
+     * slug is the URL requested, or this is no request to it. A route var the request named itself
+     * overrides the rewrite's: core's dispatcher then passes the request through and the kit's own
+     * headers are never sent, so that request is none of ours either. A kit is only read: any other
+     * verb is refused before a token is looked at.
      *
      * @return array{route: string, kit: ?array, admitted: bool, grant: ?WP_Post}|null
      */
     private function decide(WP_Query $query): ?array
     {
-        // No page route matched this URL, so it is none of ours: no round trip to make.
-        if ($query->get('ntdst_page') === '') {
+        // No page route matched this URL, or the request wrote a route var itself: none of ours, no round trip to make.
+        if ($query->get('ntdst_page') === '' || self::namesRouteVars()) {
             return null;
         }
 
@@ -205,6 +214,10 @@ class PressKitService
             $params = str_contains($tail, ':slug') ? ['slug' => $slug] : [];
 
             if (($params === [] || $slug !== '') && $this->url($tail, $params) === $requested) {
+                if (!in_array(self::method(), self::READS, true)) {
+                    return ['route' => $route, 'kit' => null, 'admitted' => false, 'grant' => null];
+                }
+
                 $kit = $this->kit($route, $params);
                 $opens = $kit === null ? false : $this->gate($kit);
 
@@ -224,6 +237,19 @@ class PressKitService
         }
 
         return null;
+    }
+
+    /** Whether the query string or the body names a route var, which WordPress then reads over the rewrite's. */
+    private static function namesRouteVars(): bool
+    {
+        foreach (self::ROUTE_VARS as $var) {
+            // phpcs:ignore WordPress.Security.NonceVerification -- only whether the key is present; nothing is read or acted on.
+            if (isset($_GET[$var]) || isset($_POST[$var])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -337,7 +363,12 @@ class PressKitService
 
     private static function isHead(): bool
     {
-        return strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')))) === 'HEAD';
+        return self::method() === 'HEAD';
+    }
+
+    private static function method(): string
+    {
+        return strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'))));
     }
 
     /**
