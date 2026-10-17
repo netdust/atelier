@@ -17,6 +17,8 @@ final class KitArchiveBuilder
     private const CREDITS = 'credits.txt';
 
     /**
+     * An entry without a label is named by its file.
+     *
      * @param list<array{label: string, entries: list<array{ref: string, label: string, file: string, credit?: string}>}> $collections
      * @return array{path: string, skipped: array<string, string>}|null null when no zip was written
      */
@@ -77,7 +79,9 @@ final class KitArchiveBuilder
                 continue;
             }
 
-            $name = $names->sanitize(self::withExtension($entry['label'], $entry['file']));
+            $name = $entry['label'] === ''
+                ? $names->fromPath($entry['file'])
+                : $names->sanitize(self::withExtension($entry['label'], $entry['file']));
 
             if (!$zip->addFile($entry['file'], $folder . '/' . $name)) {
                 $skipped[$entry['ref']] = 'could not be added';

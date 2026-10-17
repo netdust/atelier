@@ -389,7 +389,7 @@ class PressKitService
                 $file = is_string($file) ? $file : '';
                 $entries[] = [
                     'ref'    => (string) $row['attachment'],
-                    'label'  => (string) ($row['name'] ?? '') ?: wp_basename($file),
+                    'label'  => (string) ($row['name'] ?? ''),
                     'file'   => $file,
                     'credit' => (string) ($row['credit'] ?? ''),
                 ];

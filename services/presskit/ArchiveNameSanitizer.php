@@ -23,31 +23,50 @@ final class ArchiveNameSanitizer
 
     private const WHITESPACE = '/[\s\p{Z}]+/u';
 
+    private const SEPARATORS = '#[/\\\\]+#';
+
     private const FALLBACK_STEM = 'file';
+
+    /** A long title cannot push Content-Disposition past a proxy's buffer, nor an entry past 255 bytes. */
+    private const MAX_STEM_BYTES = 120;
 
     /** @var array<string, int> entry name => highest suffix issued against it */
     private array $issued = [];
 
-    /** One instance is one archive's name space: collisions dedupe within it, never across instances. */
-    public function sanitize(string $candidate): string
+    /**
+     * A label or a title, as an editor typed it: a slash is a word there ("AC/DC"), so each separator
+     * becomes ` - `. A segment of dots alone names nothing, and goes.
+     *
+     * One instance is one archive's name space: collisions dedupe within it, never across instances.
+     */
+    public function sanitize(string $label): string
     {
-        // Scrub first: preg_* with /u returns null on invalid UTF-8. Basename before the strip, not after:
-        // the strip removes the separators, so `/etc/passwd` stripped first is `etcpasswd`.
-        $segment = $this->lastPathSegment(mb_scrub($candidate, 'UTF-8'));
+        // Scrub first: preg_* with /u returns null on invalid UTF-8.
+        $segments = preg_split(self::SEPARATORS, mb_scrub($label, 'UTF-8')) ?: [];
+        $kept = array_filter($segments, static fn(string $segment): bool => preg_match('/[^\s\p{Z}.]/u', $segment) === 1);
 
+        return $this->named(implode(' - ', $kept));
+    }
+
+    /**
+     * A file's path: only its last segment is its name. Basename before the strip, not after: the strip
+     * removes the separators, so `/etc/passwd` stripped first is `etcpasswd`.
+     */
+    public function fromPath(string $path): string
+    {
+        $segments = preg_split(self::SEPARATORS, mb_scrub($path, 'UTF-8'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return $this->named($segments === [] ? '' : (string) end($segments));
+    }
+
+    private function named(string $name): string
+    {
         // Fail closed to the fallback rather than to the raw name. A CR, LF or tab becomes a space.
-        $safe = preg_replace(self::WHITESPACE, ' ', preg_replace(self::SAFE_CHARACTERS, '', $segment) ?? '') ?? '';
+        $safe = preg_replace(self::WHITESPACE, ' ', preg_replace(self::SAFE_CHARACTERS, '', $name) ?? '') ?? '';
 
         [$stem, $extension] = $this->splitExtension($safe);
 
         return $this->issue($stem, $extension);
-    }
-
-    private function lastPathSegment(string $candidate): string
-    {
-        $segments = preg_split('#[/\\\\]+#', $candidate, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        return $segments === [] ? '' : (string) end($segments);
     }
 
     /** @return array{0: string, 1: string} the stem (never empty), the extension with its leading dot */
@@ -62,9 +81,9 @@ final class ArchiveNameSanitizer
             $dot = false;
         }
 
-        // Trimming dots keeps the entry off `.`, `..` and dot-leading hidden names; trimming spaces stops
-        // a whitespace-only stem passing as non-empty.
-        $stem = trim($dot === false ? $name : substr($name, 0, $dot), ' .');
+        // Trimming dots keeps the entry off `.`, `..` and dot-leading hidden names; trimming spaces stops a
+        // whitespace-only stem passing as non-empty. Again after the cut, which can end on either.
+        $stem = trim(self::capped(trim($dot === false ? $name : substr($name, 0, $dot), ' .')), ' .');
 
         return [$stem === '' ? self::FALLBACK_STEM : $stem, $extension];
     }
@@ -86,12 +105,19 @@ final class ArchiveNameSanitizer
 
         do {
             $suffix++;
-            $issued = $stem . '-' . $suffix . $extension;
+            $tail = '-' . $suffix;
+            $issued = self::capped($stem, strlen($tail)) . $tail . $extension;
         } while (isset($this->issued[$issued]));
 
         $this->issued[$entry] = $suffix;
         $this->issued[$issued] = 0;
 
         return $issued;
+    }
+
+    /** Cut on a character boundary, leaving `$room` bytes under the cap. */
+    private static function capped(string $stem, int $room = 0): string
+    {
+        return mb_strcut($stem, 0, self::MAX_STEM_BYTES - $room, 'UTF-8');
     }
 }
