@@ -6,6 +6,8 @@ namespace Atelier\Grants;
 
 use Atelier\PressKit\PressKitModel;
 use Atelier\PressKit\PressKitService;
+use Atelier\Profile\ProfileModel;
+use Atelier\Profile\ProfileRepository;
 use Atelier\Support\Asset;
 use Atelier\Support\Languages;
 use WP_Error;
@@ -84,6 +86,7 @@ class GrantService
         private readonly GrantRepository $grants,
         private readonly PressKitModel $kits,
         private readonly PressKitService $links,
+        private readonly ProfileRepository $profiles,
     ) {
         $this->init();
     }
@@ -225,7 +228,8 @@ class GrantService
     /**
      * R-2, R-5: the mail in the grant's language, its link the kit's page there when that copy is
      * published. Plain text, said so in its own header: `{title}` is entity-decoded into the body, so a
-     * site's content-type filter must not make it HTML. The subject one line, whatever a title holds.
+     * site's content-type filter must not make it HTML. The subject one line, whatever a title holds. A
+     * reply goes to the company's own address, when its profile has one.
      */
     private function mail(string $type, int $kit, WP_Post $grant): bool
     {
@@ -246,7 +250,21 @@ class GrantService
 
         $body = strtr($this->mailText('body', $lang), $words);
 
-        return wp_mail((string) ($fields['recipient_email'] ?? ''), $subject, $body, ['Content-Type: text/plain; charset=UTF-8']);
+        return wp_mail((string) ($fields['recipient_email'] ?? ''), $subject, $body, $this->mailHeaders());
+    }
+
+    /** @return list<string> */
+    private function mailHeaders(): array
+    {
+        $headers = ['Content-Type: text/plain; charset=UTF-8'];
+        $replyTo = (string) ($this->profiles->current(Languages::defaultFor(ProfileModel::POST_TYPE))['email'] ?? '');
+
+        // is_email() refuses a line break inside an address; the check stays here, where the header is written.
+        if (is_email($replyTo) && strpbrk($replyTo, "\r\n") === false) {
+            $headers[] = 'Reply-To: ' . $replyTo;
+        }
+
+        return $headers;
     }
 
     /** A configured mail text in `$lang`, or the first language's where it has none. */
