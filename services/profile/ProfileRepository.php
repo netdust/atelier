@@ -94,6 +94,8 @@ final class ProfileRepository
         return [
             'id'                 => (int) $post->ID,
             'name'               => (string) $post->post_title,
+            // A password asked of a reader: the company's kit stays shut while it is set.
+            'protected'          => (string) $post->post_password !== '',
             'legal_name'         => $text('legal_name'),
             'tagline'            => $text('tagline'),
             'bio_short'          => $text('bio_short'),

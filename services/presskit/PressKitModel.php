@@ -34,7 +34,7 @@ final class PressKitModel
      * The company's kit from its profile: the text is the copy's in `$lang`, or the Dutch record's where
      * that language has no published copy. The fallback is per record, not per field, so a copy with an
      * empty text stays empty. The Dutch profile's logo is the kit's one logo row, named `$logoName`.
-     * null until the Dutch profile is published.
+     * null until the Dutch profile is published, and while either record carries a password.
      *
      * @return array<string, mixed>|null
      */
@@ -43,7 +43,7 @@ final class PressKitModel
         $dutch = $this->profiles->current(Languages::defaultFor(ProfileModel::POST_TYPE));
         $record = $this->profiles->current($lang);
 
-        if ($dutch === null || $record === null) {
+        if ($dutch === null || $record === null || $dutch['protected'] || $record['protected']) {
             return null;
         }
 
@@ -63,7 +63,8 @@ final class PressKitModel
 
     /**
      * Only the canonical slug of a production published in `$lang` (its Dutch record published too):
-     * `/pers/KOE/` or a slug with no copy in that language is no kit.
+     * `/pers/KOE/` or a slug with no copy in that language is no kit. A password on the record or on
+     * its Dutch record shuts the kit to everyone, a token's holder too: its page would ask for it.
      *
      * @return array<string, mixed>|null
      */
@@ -84,7 +85,7 @@ final class PressKitModel
         $dutchId = $default === null ? (int) $production->ID : (int) pll_get_post($production->ID, $default);
         $dutch = $dutchId > 0 ? $this->productions->find($dutchId) : null;
 
-        if (!$dutch instanceof WP_Post) {
+        if (!$dutch instanceof WP_Post || $production->post_password !== '' || $dutch->post_password !== '') {
             return null;
         }
 
