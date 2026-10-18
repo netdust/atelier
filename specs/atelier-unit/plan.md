@@ -37,7 +37,7 @@
 
 1. **Versions that look tested but are not** (spec F1). A gate that prints 5.4.1 implies nothing about running against it. → Task 1 says so in its commit. No test is added to make up for it: a reflection check on core's API would be a shape test.
 2. **A moved test that silently changes meaning.** The real change is the runner: laika runs PHPUnit 9.6, atelier 10.5. The base class adds nothing, because these files call no WordPress function and set no Mockery expectation. → Task 2: the diff against laika's blob shows only the namespace and `use` lines changed, and the files run green on 10.5.
-3. **A DELETE that looks safe because no mutant reaches the behaviour it guards.** For example KABT's "each archive names from scratch": the audit's cited line is a property no mutator makes static. → Task 4 quotes Task 3's mutants on each candidate's cited production lines. A candidate with none is "not judged by Infection" and stays.
+3. **A DELETE that looks safe because no mutant reaches the behaviour it guards.** For example KABT's "each archive names from scratch": the audit's cited line is a property no mutator makes static. → Task 4 quotes Task 3's mutants on each candidate's cited production lines. A candidate whose cited-line mutants are all "not covered" (or absent) is "not judged by Infection" and stays.
 4. **Two tests that cover each other both going.** → Task 4 keeps the earlier proven removals in every later run.
 5. **Infection creeping into the gate, or the lock being ignored again.** These are absences, and atelier has no `ARCHITECTURE-INVARIANTS.md` until F9. → Task 1 and Task 3 run `git check-ignore -q composer.lock` (expect exit 1) and grep `scripts.gate`.
 
@@ -96,7 +96,7 @@
   - `testFramework: "phpunit"`;
   - `logs.json: "build/infection/mutation.json"` and `logs.text: "build/infection/mutation.txt"`.
 - Modify: `.gitignore` (`/build/`)
-- Create: `bin/mutants.php`, opening with the CLI guard every shipped PHP file carries (`PHP_SAPI === 'cli' || exit;`, as `tests/bootstrap.php:2`), since laika installs atelier web-reachable. It reads a JSON log and prints `stats.totalMutantsCount` as its first line, then one sorted line per survivor (status, mutator, file, line, diff hash), so two runs compare with `diff` and a vanished mutant cannot pass unnoticed.
+- Create: `bin/mutants.php`, opening with the CLI guard every shipped PHP file carries (`PHP_SAPI === 'cli' || exit;`, as `tests/bootstrap.php:2`), since laika installs atelier web-reachable. It reads a JSON log and prints `stats.totalMutantsCount` and `stats.skippedCount` on its first line, then one sorted line per survivor (status, mutator, file, line, diff hash), so two runs compare with `diff` and a vanished mutant cannot pass unnoticed.
 - Create: `specs/mutation/<date>.md`
 
 - [ ] **Step 1:** install Infection, configure it, and run `composer mutation`.
@@ -107,7 +107,7 @@
   - every survivor as `bin/mutants.php` prints it, with the original → mutated code.
 
   It is a report: change no test because of it. Copy the run's JSON to `build/infection/baseline.json` and its `bin/mutants.php` list to `build/infection/accepted.txt`. Task 4 reads them, because each Task 4 run overwrites `mutation.json`.
-- [ ] **Step 3:** `scripts.gate` does not call Infection (quote it); `git check-ignore -q composer.lock` exits 1. Commit (`test: report-only mutation baseline on the card and the zip, and a changed-code mutation run for review — framework-tests F6`).
+- [ ] **Step 3:** `composer mutation:diff` runs once and exits 0. This branch changes nothing under `services/` or `shared/`, so it proves only that the script's flags parse. `scripts.gate` does not call Infection (quote it); `git check-ignore -q composer.lock` exits 1. Commit (`test: report-only mutation baseline on the card and the zip, and a changed-code mutation run for review — framework-tests F6`).
 
 ### Task 4: The proven prune
 
@@ -124,6 +124,7 @@
   - Otherwise, remove the candidate, keeping every earlier proven removal, and run `composer mutation`. Compare `bin/mutants.php`'s list with `build/infection/accepted.txt`, the last accepted state, using `diff`.
     - **Identical:** the DELETE is proven, and this run's list becomes `accepted.txt`.
     - **A new survivor:** restore the test, or first move its killing assertion into the cited cover, and name the mutant.
+    - **Anything else** (a survivor gone, or the first line changed): not proven. Rerun once, then name it in the report.
   - When a removal leaves a data provider unused (for example `emptyFieldProvider`, `lineTerminatorProvider`, audit :585), delete the provider with its last test.
 - [ ] **Step 2:** ruling (the reviewer's, by delegation, for the prune audit's move 8; Stefan sees it in this plan): add the `editorNames` rows to KABT (audit :506-508), with values the sanitizer decides (`ArchiveNameSanitizer.php:19-22`, `:65`):
   - `'question mark' => ['Wat zag de koe?', 'Documenten/Wat zag de koe.pdf']`;

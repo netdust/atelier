@@ -1,91 +1,68 @@
-# Plan review — atelier-unit (round 2)
-Reviewed-plan: 0e2662859753afcaa695796efc6f33cbe38668e3
-Verdict: not ready
+# Plan review — atelier-unit (round 3)
+Reviewed-plan: 79b6126061d727ff97115b455064a9a799c04ea7
+Verdict: ready
 
-Round 1's B1 and S1, S2, S4 and S5 are closed. S3 is closed on paper, but the commands the plan writes switch it off: Infection 0.35.8 does not mutate uncovered code unless you pass a flag, so the "not covered" survivors the plan now counts never appear. That is the one Blocking item below, and the fix is one flag on two scripts. Everything else goes to Stefan as one Should fix and some Notes.
+Round 2's B1 and S1 are closed, and all six of its notes were taken. I checked each changed part against its source: Infection 0.35.8 (commit 642f797), Composer 2.8.9 and atelier at the worktree HEAD. Nothing in them is Blocking. The four Notes below are optional edits, and the plan can go to Stefan as it is.
 
-## Round 1, item by item
-- **B1, versions that look tested:** closed. The Architecture section, the First working version, Review Focus 1, Test map row 1, Task 1 Step 2 and the Step 3 commit no longer promise to find breakage, and the two stubs are cited. The citations hold.
-- **S1, `composer show`:** closed. `"@composer show netdust/*"` works. In Composer 2.8.9, `ShowCommand.php:300` sends a name containing `*` to the list view, and `:407` turns it into a regex. No `./netdust` directory exists, so the shell leaves the glob as it is.
-- **S2, the move's proof:** closed.
-  - The proof is a diff against pinned blobs, and the blobs are right: `8ebc744`, `343a099`.
-  - The 10.5 run takes several paths (`TestSuiteBuilder.php:44-47`).
-  - 86 is correct: VCT has 36 methods with providers of 3 and 7 rows, which is 44. KABT has 21 methods with 22 `editorNames` rows, which is 42.
-  - Review Focus 2 names the runner change.
-- **S3, survivors:** the definition, `logs.json`, `--log-verbosity=all` and the mechanical `diff` are all there. The "not covered" part does not work (B1 below).
-- **S4, mutants on the cited lines:** closed. Step 1 quotes the cited-line mutants, uses the "not judged by Infection" verdict, and keeps earlier removals.
-- **S5, the review-time run:** closed.
-  - `source.directories` is shown, the scripts are shown, and the `mutation:diff` script exists.
-  - `--git-diff-base` is accepted together with `--git-diff-lines` (`SourceFilterOptions.php:142-158`).
-- **N1 to N7:** all taken up. N5 is now a ruling in the plan, so Stefan can see it.
+## Round 2, item by item
+- **B1, `--with-uncovered`:** closed.
+  - Both scripts now pass the flag (Task 3, lines 92-93), and the plan says why.
+  - With the flag set, `ExcludeUntestedNodesVisitor` is not added (`src/PhpParser/NodeTraverserFactory.php:103-104`). It is the only exclusion that depends on coverage, so `stats.totalMutantsCount` stays the same from one run to the next.
+  - The JSON log lists the uncovered mutants (`src/Reporter/JsonReporter.php:84`, `src/Metrics/TargetDetectionStatusesProvider.php:153`).
+  - So when a removed test was the only one covering a line, that line's mutants appear in the `diff` as new "not covered" lines.
+  - The two optional parts were taken as well: the count on the first line (line 99), and the "none other than not covered" verdict (line 123).
+- **S1, Review Focus 1:** closed. Line 38 now says only "Task 1 says so in its commit". The commit message in Task 1 Step 3 does say it ("the unit tier loads none of them").
+- **N1, keep the reference lists:** taken. Line 109 keeps `baseline.json` and `accepted.txt`. Task 4 Step 1 reads the killed mutants from `baseline.json` and runs `diff` against `accepted.txt` (lines 123-125).
+- **N2, what the JSON log gives:** taken (line 106).
+- **N3, the positional filter:** taken.
+  - `infection <path>…` is routed to `run` (`src/Console/Application.php:98-99`).
+  - All three paths exist under `services/`, so Infection treats them as source paths (`src/Configuration/PositionalPathsClassifier.php:172`).
+  - Each path is matched as a quoted substring of the file's real path (`src/FileSystem/Finder/Iterator/RealPathFilterIterator.php:82`).
+- **N4, Composer's script timeout:** taken. `Composer\Config::disableProcessTimeout` exists in Composer 2.8.9 (`src/Composer/Config.php:657`), and the default timeout is 300 s (`:36`).
+- **N5, the CLI guard:** taken (line 99). It is the same form as `tests/bootstrap.php:2`.
+- **N6, the row values:** taken (lines 128-130), and labelled as a ruling Stefan sees. Both values hold:
+  - **'question mark':** the label has no extension, so `withExtension` adds `.pdf` (`services/presskit/KitArchiveBuilder.php:128-136`). Then `?` is dropped (`services/presskit/ArchiveNameSanitizer.php:22`, `:65`). The result is `Documenten/Wat zag de koe.pdf`.
+  - **'combining mark':** `\p{M}` is kept, and nothing on the path normalizes the name (`ArchiveNameSanitizer.php:45` only scrubs it). The result is `Documenten/Danie\u{0308}l.pdf`.
+  - The new row is distinct from the existing 'accents' row (KABT:239), which uses the precomposed U+00EB (bytes `c3 ab`).
 
 ## Blocking
-
-**B1. Infection 0.35 does not mutate code that no test covers, so the survivor list cannot grow when a removed test was a line's only cover.**
-- **Plan:**
-  - Global Constraints, line 28: a survivor includes "not covered", and "A DELETE is proven when the survivor list with the test removed equals the list with it present".
-  - Task 3 Files, lines 92-93: `scripts.mutation` and `scripts.mutation:diff`, neither with `--with-uncovered`.
-  - Task 4 Step 1, line 124.
-- **Source** (Infection tag 0.35.8, commit 642f797):
-  - `CHANGELOG.md:35,52`, in 0.31.0: "Remove `--only-covered`; Introduce `--with-uncovered` … by default, Infection doesn't mutate uncovered code anymore".
-  - `src/Command/RunCommand.php:194-198`: `--with-uncovered` is a flag that is off by default.
-  - `src/PhpParser/NodeTraverserFactory.php:103-104` adds `ExcludeUntestedNodesVisitor` when only covered code is mutated. That visitor (`:50`) marks every node with no covering test as ineligible, so Infection generates no mutant for it.
-  - `src/Reporter/JsonReporter.php:84`: `'uncovered' => $this->onlyCoveredMode ? [] : …`.
-- **What is wrong:**
-  - Take a candidate that is the only atelier test executing a line. This is most likely among the KABT four, whose other cover was laika's PKT. Remove it, and that line's mutants go from killed to not generated at all. They were never in the survivor list, so they are still not in it. The `diff` reads "identical" and the DELETE counts as proven.
-  - This is the false proof round 1's S3 was written to close, and it is the case Review Focus 3 and 4 guard.
-  - The same default makes `mutation:diff` stay silent about changed code that has no test at all, and that is the code a review most needs to see.
-  - The 0.35.x pin makes this certain, not a matter of version drift.
-- **Smallest change:**
-  - Add `--with-uncovered` to both scripts.
-  - Optionally, have `bin/mutants.php` print `stats.totalMutantsCount` as its first line, so a mutant that disappears can never pass a `diff` unnoticed.
-  - In Task 4 Step 1, "none" then means no mutant on the cited lines that Task 3 reports as anything other than "not covered".
+None.
 
 ## Should fix
-
-**S1. Review Focus 1 promises gate output that no step produces** (Review Focus line 38: "Task 1 says so in its commit and in the gate's output").
-- Task 1 adds only `@composer show netdust/*`, which prints names and versions. It cannot say that the unit tier loads neither package. The commit message (Task 1 Step 3) does say so.
-- **Change:** drop "and in the gate's output". Alternatively, add an `@php -r "echo 'unit tier loads no netdust package (spec F2 tests real core)', PHP_EOL;"` step after the `show` line.
+None.
 
 ## Note
-
-- **N1. Keep the reference lists.**
-  - `bin/mutants.php` prints only survivors (line 99). Task 4 Step 1's "Task 3's mutants on its cited production lines" (line 123) also needs the killed ones. Those are only in `build/infection/mutation.json`: `--log-verbosity` does not matter here, because `TargetDetectionStatusesProvider.php:150-165` collects killed mutants for every JSON log. That file is gitignored, and Task 4's first run overwrites it.
-  - "The previous run's" list (line 124) has to be the last accepted state, not a run whose removal was restored.
-  - **Change:** copy Task 3's JSON to `build/infection/baseline.json`, and keep the accepted list as `build/infection/accepted.txt`.
-- **N2. What the JSON log can give** (Task 3 Step 2, line 106).
-  - It has no per-class stats, so the per-class counts come from grouping entries by `originalFilePath`.
-  - It lists no "skipped" mutants, only `stats.skippedCount` (`JsonReporter.php:63-86`). Skipped means skipped for time (`MutationTestingRunner.php:174`), so per-class "skipped" can only be the run total, expected to be 0.
-- **N3. `--filter` is deprecated** since 0.34.0 and warns on every run (`SourceFilterOptions.php:135`). It still works. The current spelling is positional: `infection services/card/VCardBuilder.php services/presskit/KitArchiveBuilder.php services/presskit/ArchiveNameSanitizer.php`.
-- **N4. Composer's script timeout.** Composer kills a script after 300 s (`Config.php:36`). If one `composer mutation` run gets past that on this box, it dies part-way. Put `"Composer\\Config::disableProcessTimeout"` first in both scripts (`Config.php:657`).
-- **N5. `bin/mutants.php` ships inside the mu-plugin.** laika installs atelier as a source clone under `web/app/mu-plugins/atelier`, which is web-reachable on Bedrock. Every PHP file atelier ships now carries a guard: `services/**` uses `defined('ABSPATH') || exit;`, and `tests/bootstrap.php:2` uses `PHP_SAPI === 'cli' || exit;`. Open `bin/mutants.php` with the same CLI guard.
-- **N6. Task 4 Step 2 names the rows but not their values** (line 128).
-  - Source decides them. `?` is outside `SAFE_CHARACTERS` and is dropped, and `\p{M}` is kept (`ArchiveNameSanitizer.php:19-22`, `:65`). That matches the e2e title's "? dropped" (laika `tests/E2E/presskit.spec.ts:1114`).
-  - For example: `'question mark' => ['Wat zag de koe?', 'Documenten/Wat zag de koe.pdf']` and `'combining mark' => ["Danie\u{0308}l", "Documenten/Danie\u{0308}l.pdf"]`.
-  - The step calls this "the reviewer's" ruling. Round 1 left move 8 to Stefan, so he confirms it when he reads the plan.
+- **N1. Review Focus 3 still states the old rule** (line 40).
+  - It says: "A candidate with none is 'not judged by Infection'".
+  - Task 4 Step 1 (line 123) now applies a wider rule: none of the mutants is anything other than "not covered".
+  - **Change:** reword Review Focus 3 to match, so the whole-branch reviewer checks the rule the code follows.
+- **N2. Task 4 Step 1 has no verdict for a list that changes without gaining a survivor** (lines 125-126).
+  - The step has two branches: "Identical" and "A new survivor". A run where a survivor disappears, or where the first line differs, fits neither.
+  - Removing a test cannot kill a mutant, and the total is fixed (B1 above). So this can only come from a flaky timeout.
+  - **Change:** add one line: "Anything else: not proven; rerun once, then name it in the report."
+- **N3. The survivor list cannot see "skipped" mutants** (line 28 against line 99).
+  - The survivor definition includes skipped mutants. The JSON log lists none of them (`JsonReporter.php:78-86`), and only `stats.skippedCount` records them.
+  - A mutant going from killed to skipped is practically impossible: removing a test only lowers a mutant's nominal test time, and the skip is a time limit (`src/Process/Runner/MutationTestingRunner.php:166-178`).
+  - **Change (optional):** print `stats.skippedCount` on the first line beside the total. That closes the gap at no cost.
+- **N4. No step runs `composer mutation:diff`** (line 93).
+  - This branch changes nothing under `services/` or `shared/`. Run here, Infection reports that the git diff has no files, as a success, and exits 0 (`src/Git/CommandLineGit.php:102-103`, `src/Command/RunCommand.php:398-402`).
+  - **Change (optional):** one run in Task 3 Step 3 would prove the script's flags parse. It proves nothing about mutants.
 
 ## Premises checked
-- core v5.4.1 and baseline v2.17.0 declare no autoload; baseline requires `netdust/ntdst-core ^5.4`; no `composer/installers` → `git show v5.4.1:composer.json`, `git show v2.17.0:composer.json` → holds
-- newest `^5.4` is v5.4.1, newest `^2.16.1` is v2.17.0 → `git ls-remote --tags` on both repos → holds
-- the tests stub `ntdst_data` → `tests/Unit/Planning/RelationTargetsTest.php:33`, `tests/Unit/Production/ProductionVocabulariesTest.php:27-37` (the registry is returned at :37) → holds
-- 31 existing tests → 26 methods, plus `activityEdges`' 6 rows (`RelationTargetsTest.php:55`) → holds
-- `@composer show netdust/*` prints one line per installed package → Composer 2.8.9 `ShowCommand.php:300`, `:407` → holds
-- the gate's lint covers every PHP file outside vendor, so `bin/mutants.php` too → `composer.json` `scripts.lint` → holds
-- source blobs 8ebc744 and 343a099 at laika 3ca8368 → `git rev-parse 3ca8368:<path>` → holds
-- only lines 5 and 8 (VCT) and lines 5 and 9 (KABT) need to change; the files reference no laika fixture or helper → `NtdstTests\Unit\TestCase` is the only foreign symbol; `asset()` writes temp files (KABT:438-442) → holds
-- the providers are static, and `@dataProvider` doc-comments run on 10.5 → VCT:139, :297; KABT:223 → holds
-- the moved classes need only `ABSPATH`, which atelier's bootstrap defines → `VCardBuilder.php:7`, `KitArchiveBuilder.php:7`, `ArchiveNameSanitizer.php:7`; `tests/bootstrap.php:4` → holds
-- PHPUnit 10.5 runs several path arguments → `TestSuiteBuilder.php:44-47` (10.5.65) → holds
-- 86 tests (44 + 42) → method and provider-row count → holds
-- the host has PCOV, and its directory defaults to the worktree; no Xdebug; ext-zip, mbstring and iconv present → `php -m`; `php -i` from the worktree prints `pcov.directory => …/atelier-unit` → holds
-- Infection 0.35.8 needs PHP ^8.3 and pulls the `infection/extension-installer` plugin; no conflict with Brain Monkey's patchwork ≥2.1.25 → `composer.json` at 0.35.8 → holds
-- `source` takes `directories` and `excludes`; `logs.json` is in the schema; `testFramework` is `phpunit` → `resources/schema.json` → holds
-- the plain filter and the git-diff filter exclude each other; `--git-diff-base` is accepted with `--git-diff-lines` → `SourceFilterOptions.php:142-158`, `:254` → holds
-- uncovered mutants show up as "not covered" in the survivor list → `RunCommand.php:194-198`, `NodeTraverserFactory.php:103-104`, `JsonReporter.php:84` → does not hold without `--with-uncovered` (B1)
-- the JSON log lists killed mutants, so cited-line mutants can be quoted → `TargetDetectionStatusesProvider.php:150-165` → holds
-- the JSON log carries skipped mutants and per-class stats → `JsonReporter.php:63-86` → does not hold (N2)
-- the audit's DELETE rows, move 8 and the dead providers → laika `specs/test-prune/2026-10-18.md:375-399`, `:508`, `:585` → holds
-- KABT:142's cited lines cannot be reached by a mutator → `ArchiveNameSanitizer.php:34` is `private array $issued = [];`, `KitArchiveBuilder.php:66` is `new ArchiveNameSanitizer()` → holds
-- laika's DDEV and the host both run PHP 8.3 → laika `.ddev/config.yaml:4`; `php -v` 8.3.6 → holds
-- `netdust-gates:feature-review` exists → `netdust-gates/0.10.0/commands/feature-review.md` → holds
-- the spec path and its amended F1 → `~/Sites/netdust-wp-manager-framework-tests/specs/framework-tests/spec.md` at 4bb9b2a → holds
+- `--with-uncovered` turns off the uncovered-node exclusion → Infection `src/Command/RunCommand.php:194-198`, `src/PhpParser/NodeTraverserFactory.php:103-104`, `CHANGELOG.md:35,52` → holds
+- the mutant total does not depend on coverage when the flag is set → `NodeTraverserFactory.php:84-104`: no other visitor reads coverage → holds
+- the JSON log carries `stats.totalMutantsCount`, `killed` and `uncovered` → `src/Reporter/JsonReporter.php:64`, `:80`, `:84` → holds
+- the JSON log lists no skipped mutants, only `stats.skippedCount` → `JsonReporter.php:71`, `:78-86` → holds; this is why line 106 reports skipped as a run total
+- `--log-verbosity=all` is a valid value → `src/Console/LogVerbosity.php:50` → holds
+- `logs.text` and `logs.json` are in the config schema → `resources/schema.json:74`, `:82` → holds
+- a bare `infection <path>` runs `run` → `src/Console/Application.php:98-99`, `:162-191` → holds
+- the three paths are classified as source paths → `services/card/VCardBuilder.php`, `services/presskit/KitArchiveBuilder.php` and `services/presskit/ArchiveNameSanitizer.php` exist; `PositionalPathsClassifier.php:172` → holds
+- `--filter` is deprecated since 0.34.0 → `src/Command/Option/SourceFilterOptions.php:135` → holds
+- positional paths and the git-diff filter exclude each other → `SourceFilterOptions.php:273` → holds
+- `--with-uncovered` can be combined with `--git-diff-lines` → `SourceFilterOptions.php` asserts no conflict between them → holds
+- Composer kills a script after 300 s, and `Config::disableProcessTimeout` exists → Composer 2.8.9 `src/Composer/Config.php:36`, `:657` → holds
+- the CLI guard form is `PHP_SAPI === 'cli' || exit;` → atelier `tests/bootstrap.php:2` → holds
+- laika installs atelier as a source clone in a web-reachable directory → `~/Sites/atelier` is a symlink to `laika/web/app/mu-plugins/atelier`, which has a `.git` → holds
+- the gate's lint also covers `bin/mutants.php` → atelier `composer.json`, `scripts.lint` → holds
+- the 'question mark' and 'combining mark' values → `KitArchiveBuilder.php:88-90`, `:128-136`; `ArchiveNameSanitizer.php:22`, `:45`, `:65` → holds
+- move 8 is at audit :506-508 and serves `presskit.spec.ts:1114` → laika `specs/test-prune/2026-10-18.md:506`, `:508`; `tests/E2E/presskit.spec.ts:1114` at 3ca8368 ("? dropped") → holds
