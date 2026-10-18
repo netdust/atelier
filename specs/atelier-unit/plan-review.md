@@ -1,109 +1,91 @@
-# Plan review — atelier-unit
-Reviewed-plan: b1266379eafc20f02190feb6da74c7f76f9b3e23
+# Plan review — atelier-unit (round 2)
+Reviewed-plan: 0e2662859753afcaa695796efc6f33cbe38668e3
 Verdict: not ready
 
-One Blocking item: a premise that is false in source. The fix is a rewording, but Stefan should read the reworded version, because it changes what F1 delivers at atelier. The five Should fix items are commands and definitions. None of them changes the plan's shape.
+Round 1's B1 and S1, S2, S4 and S5 are closed. S3 is closed on paper, but the commands the plan writes switch it off: Infection 0.35.8 does not mutate uncovered code unless you pass a flag, so the "not covered" survivors the plan now counts never appear. That is the one Blocking item below, and the fix is one flag on two scripts. Everything else goes to Stefan as one Should fix and some Notes.
+
+## Round 1, item by item
+- **B1, versions that look tested:** closed. The Architecture section, the First working version, Review Focus 1, Test map row 1, Task 1 Step 2 and the Step 3 commit no longer promise to find breakage, and the two stubs are cited. The citations hold.
+- **S1, `composer show`:** closed. `"@composer show netdust/*"` works. In Composer 2.8.9, `ShowCommand.php:300` sends a name containing `*` to the list view, and `:407` turns it into a regex. No `./netdust` directory exists, so the shell leaves the glob as it is.
+- **S2, the move's proof:** closed.
+  - The proof is a diff against pinned blobs, and the blobs are right: `8ebc744`, `343a099`.
+  - The 10.5 run takes several paths (`TestSuiteBuilder.php:44-47`).
+  - 86 is correct: VCT has 36 methods with providers of 3 and 7 rows, which is 44. KABT has 21 methods with 22 `editorNames` rows, which is 42.
+  - Review Focus 2 names the runner change.
+- **S3, survivors:** the definition, `logs.json`, `--log-verbosity=all` and the mechanical `diff` are all there. The "not covered" part does not work (B1 below).
+- **S4, mutants on the cited lines:** closed. Step 1 quotes the cited-line mutants, uses the "not judged by Infection" verdict, and keeps earlier removals.
+- **S5, the review-time run:** closed.
+  - `source.directories` is shown, the scripts are shown, and the `mutation:diff` script exists.
+  - `--git-diff-base` is accepted together with `--git-diff-lines` (`SourceFilterOptions.php:142-158`).
+- **N1 to N7:** all taken up. N5 is now a ruling in the plan, so Stefan can see it.
 
 ## Blocking
 
-**B1. Atelier's unit tier loads no core or baseline code, so Task 1 cannot "show what the real versions break".**
+**B1. Infection 0.35 does not mutate code that no test covers, so the survivor list cannot grow when a removed test was a line's only cover.**
 - **Plan:**
-  - Architecture, "First working version" (line 10): "passes, or shows what the real versions break".
-  - Task 1 Step 2 (line 59): "A test that fails against the real versions is this task's real finding".
-  - Review Focus 1 (line 29).
-  - Test map row 1 (line 44): "against the locked versions".
-- **Source:**
-  - Neither package declares an autoload. `git -C ~/Sites/ntdst-core show v5.4.1:composer.json` and `git -C ~/Sites/ntdst-baseline show v2.17.0:composer.json` have no `autoload` key, and `~/Sites/atelier/vendor/composer/autoload_*.php` holds no netdust entry.
-  - `tests/bootstrap.php:3` requires only `vendor/autoload.php`. No file under `tests/`, `services/` or `shared/` requires a `vendor/netdust` path.
-  - The tests stub core instead of loading it: `tests/Unit/Planning/RelationTargetsTest.php:33` (`Functions\expect('ntdst_data')->never()`) and `tests/Unit/Production/ProductionVocabulariesTest.php:27-37` (a hand-written registry returned from `ntdst_data`). Brain Monkey can stub `ntdst_data` only because core's function is never defined.
-- **What is wrong:** after Task 1 the gate prints 5.4.1 and 2.17.0 and passes, but no line of either package ran. It would pass the same way against 5.2.0. This is edge class 8 (compiled, not rendered), and it is the false comfort Review Focus 1 exists to catch. The spec's "Atelier's gate runs against core 5.2.0" is just as loose, but the promise that Task 1 can find a breakage is the plan's own.
-- **Smallest change:** reword those four places:
-  - Task 1 records and prints what is installed: the lock plus the version lines.
-  - No atelier unit test loads core or baseline (cite the two stubs).
-  - Atelier first runs against real core on F2's test site.
-  - Drop "or shows what the real versions break" and Step 2's fix path.
-  - Add no test here to make up for it. A reflection check on core's registry signature would be a shape test.
+  - Global Constraints, line 28: a survivor includes "not covered", and "A DELETE is proven when the survivor list with the test removed equals the list with it present".
+  - Task 3 Files, lines 92-93: `scripts.mutation` and `scripts.mutation:diff`, neither with `--with-uncovered`.
+  - Task 4 Step 1, line 124.
+- **Source** (Infection tag 0.35.8, commit 642f797):
+  - `CHANGELOG.md:35,52`, in 0.31.0: "Remove `--only-covered`; Introduce `--with-uncovered` … by default, Infection doesn't mutate uncovered code anymore".
+  - `src/Command/RunCommand.php:194-198`: `--with-uncovered` is a flag that is off by default.
+  - `src/PhpParser/NodeTraverserFactory.php:103-104` adds `ExcludeUntestedNodesVisitor` when only covered code is mutated. That visitor (`:50`) marks every node with no covering test as ineligible, so Infection generates no mutant for it.
+  - `src/Reporter/JsonReporter.php:84`: `'uncovered' => $this->onlyCoveredMode ? [] : …`.
+- **What is wrong:**
+  - Take a candidate that is the only atelier test executing a line. This is most likely among the KABT four, whose other cover was laika's PKT. Remove it, and that line's mutants go from killed to not generated at all. They were never in the survivor list, so they are still not in it. The `diff` reads "identical" and the DELETE counts as proven.
+  - This is the false proof round 1's S3 was written to close, and it is the case Review Focus 3 and 4 guard.
+  - The same default makes `mutation:diff` stay silent about changed code that has no test at all, and that is the code a review most needs to see.
+  - The 0.35.x pin makes this certain, not a matter of version drift.
+- **Smallest change:**
+  - Add `--with-uncovered` to both scripts.
+  - Optionally, have `bin/mutants.php` print `stats.totalMutantsCount` as its first line, so a mutant that disappears can never pass a `diff` unnoticed.
+  - In Task 4 Step 1, "none" then means no mutant on the cited lines that Task 3 reports as anything other than "not covered".
 
 ## Should fix
 
-**S1. Task 1's version line breaks the gate** (Task 1, Files, line 55).
-- `@composer show netdust/ntdst-core netdust/ntdst-baseline` passes `netdust/ntdst-baseline` as the `version` argument. In Composer 2.8.9 (`src/Composer/Command/ShowCommand.php`, read from the phar), the second argument is `InputArgument('version', …, 'Version or version constraint to inspect')`, and `getPackage()` passes it to `parseConstraints()`. The gate's new first step therefore throws before lint runs.
-- A single `show <package>` also prints a full info block.
-- **Change:** use `"@composer show netdust/*"`. The `package` argument takes a wildcard to filter the list, and the output is one line per installed netdust package, with its version.
-
-**S2. Task 2's before-count runs one file, on a different runner** (Task 2 Step 1 line 69, Step 3 line 75; Review Focus 2 line 30).
-- laika runs PHPUnit 9.6.35 (laika `vendor/composer/installed.json`). Its CLI reads only the first positional argument (`vendor/phpunit/phpunit/src/TextUI/CliArguments/Builder.php:234-235`), so it silently drops `tests/Unit/PressKit`.
-- Step 1 therefore counts 44 tests: VCT has 36 methods and two providers of 3 and 7 rows. Atelier's two files hold 86: KABT adds 21 methods with `editorNames`' 22 rows, which is 42.
-- The fallback, "take the counts from the files", gives no assertion count, and Step 3 demands one. Step 3's `composer gate` prints only the suite total.
-- Review Focus 2 names the base class as the risk. These tests call no WordPress function and set no Mockery expectation, so the base class adds nothing. The real change is PHPUnit 9.6 → 10.5.
-- **Change, simplest first:**
-  - Drop the laika run and prove the move with a diff, `diff <(git -C ~/Sites/laika show 3ca8368:tests/Unit/Card/VCardBuilderTest.php) tests/Unit/Card/VCardBuilderTest.php` (likewise for KABT). It should show only the namespace and `use` lines changed.
-  - Add a green `vendor/bin/phpunit tests/Unit/Card tests/Unit/PressKit` on 10.5, which accepts several paths.
-  - That proves "every assertion kept" better than equal counts do, and it needs no DDEV. If the counts stay, use one laika command per file.
-  - Either way, pin the source. Both files exist only on laika `feature/presskit` (at 3ca8368: blobs 8ebc744 and 343a099) and `staging`, not on laika's `main`.
-  - Review Focus 2 should name the runner change.
-
-**S3. "Surviving mutant" is undefined, and the configured logs cannot give what Task 3 Step 3 records** (Task 3 Files line 82, Step 3 lines 88-92; Task 4 Step 1 line 105; Review Focus 3).
-- Removing the only test that covers a line makes its mutants "not covered", not "escaped". A killed mutant can also become a timeout. If the compared list holds only escaped mutants, such a DELETE passes as proven. That is exactly Review Focus 3's case.
-- `logs.summary` covers the whole run, and `logs.text` omits killed mutants at default verbosity. Neither can give "per class: the score, and the killed … counts".
-- **Change:**
-  - Define a survivor as every mutant that was not killed: escaped, timed out, not covered or skipped. Key each one by mutator + file + line + diff.
-  - Add `logs.json` (it is in 0.35.8's schema) and run with `--log-verbosity=all`.
-  - Compare runs by extracting those keys, so the comparison over 18 runs is mechanical, not done by eye.
-
-**S4. An identical list proves nothing where Infection generates no mutant for the behaviour** (Task 4 Step 1, lines 105-107).
-- For each DELETE, the audit names the production line a mutant must reach (`laika/specs/test-prune/2026-10-18.md:373-399`, last column).
-- For KABT:142 that line is "`ArchiveNameSanitizer.php:34` or `KitArchiveBuilder.php:66` made static" (:397). In source, those lines are `private array $issued = [];` and `$names = new ArchiveNameSanitizer();`. No Infection mutator makes a property static or shares an instance. The run will report "identical", and the test goes.
-- Atelier's only other cover, KABT:255-261, holds only through state carried between data-provider rows (audit :87, :397, :843).
-- **Change:**
-  - For each candidate, quote Task 3's mutants on the audit's cited lines.
-  - Report a candidate with no mutant there as "not judged by Infection". It stays until Stefan decides.
-  - State that each run keeps the earlier proven removals. Otherwise two candidates that cover each other can both go on separate "identical" runs.
-
-**S5. F6's "changed code only at review" has no home, and Task 3's config shuts it out** (Spec line 14; Task 3 Files line 82).
-- In Infection 0.35.8, `source` accepts only `directories` (required) and `excludes` (`resources/schema.json`). "Source: the three classes" therefore becomes two directories plus excludes, and a review-time `--git-diff-lines` run would never reach grants, performance, planning, profile or production.
-- The step also shows neither `infection.json5` nor the script.
-- **Change:**
-  - Show `infection.json5` with `source.directories: ["services", "shared"]`.
-  - Put the three classes on the baseline command: `infection --filter=services/card/VCardBuilder.php,services/presskit/KitArchiveBuilder.php,services/presskit/ArchiveNameSanitizer.php` (`src/Command/Option/SourceFilterOptions.php:80`).
-  - Then choose one of two:
-    - add a second script for review, `infection --git-diff-lines --git-diff-base=origin/main` (the plain filter and the git-diff filter exclude each other, :120, hence two scripts);
-    - or narrow the Spec line to "F6's module baseline" and name who owns the review-time run.
+**S1. Review Focus 1 promises gate output that no step produces** (Review Focus line 38: "Task 1 says so in its commit and in the gate's output").
+- Task 1 adds only `@composer show netdust/*`, which prints names and versions. It cannot say that the unit tier loads neither package. The commit message (Task 1 Step 3) does say so.
+- **Change:** drop "and in the gate's output". Alternatively, add an `@php -r "echo 'unit tier loads no netdust package (spec F2 tests real core)', PHP_EOL;"` step after the `show` line.
 
 ## Note
 
-- **N1. The Spec line claims more than this plan delivers.**
-  - Under the spec's Cut, the baseline and core plans own F1's second and third bullets (baseline loads real core; core's branch alias) and F6's "on each package". Write "F1 (atelier's bullet)" so F1 is not closed when this merges.
-  - The cited path `~/Sites/netdust-wp-manager/specs/framework-tests/spec.md` does not exist on disk, because that checkout is on `master`. Cite `~/Sites/netdust-wp-manager-framework-tests/specs/framework-tests/spec.md`, or `git show spec/framework-tests:specs/framework-tests/spec.md`.
-- **N2. Task 3's stop will not fire.** PCOV is installed now: `php -m` on PHP 8.3.6 lists `pcov`.
-- **N3. The committed lock pins a dev tool that needs PHP 8.3.** Infection 0.35.8, the newest tag, requires `php ^8.3`, while atelier declares `>=8.2`, so an 8.2 box cannot install from the lock. The host and laika's DDEV are both 8.3, so nothing breaks today. One line in the plan is enough.
-- **N4. Deleting a test can leave its provider dead.** Deleting VCT:125 and VCT:288 leaves `emptyFieldProvider` and `lineTerminatorProvider` unused (audit :585), and PHPUnit does not warn about that. Delete each provider with its last test.
-- **N5. Audit move 8 now has no owner.** Move 8 (audit :506-508) adds the `editorNames` rows "question mark" and "combining mark" to KABT, for laika's presskit.spec.ts:1114 DELETE. With KABT in atelier, the rows land in atelier, and laika's cleanup can only get them in through an atelier change. Stefan decides whether this Task 4 takes them or a later atelier change does.
-- **N6. Keep the move line for line.** Change only the namespace and `use` lines, so the audit's `VCT:` and `KABT:` line citations still resolve in atelier during Task 4.
-- **N7. Review Focus 4 has no invariants check yet.** Its "never in the gate" and "lock not ignored" are absences, and atelier has no `ARCHITECTURE-INVARIANTS.md` until F9 adds one. The manual checks stand until then. Task 3 edits `.gitignore`, so add `git check-ignore -q composer.lock` (expect exit 1) to Task 3 Step 4.
+- **N1. Keep the reference lists.**
+  - `bin/mutants.php` prints only survivors (line 99). Task 4 Step 1's "Task 3's mutants on its cited production lines" (line 123) also needs the killed ones. Those are only in `build/infection/mutation.json`: `--log-verbosity` does not matter here, because `TargetDetectionStatusesProvider.php:150-165` collects killed mutants for every JSON log. That file is gitignored, and Task 4's first run overwrites it.
+  - "The previous run's" list (line 124) has to be the last accepted state, not a run whose removal was restored.
+  - **Change:** copy Task 3's JSON to `build/infection/baseline.json`, and keep the accepted list as `build/infection/accepted.txt`.
+- **N2. What the JSON log can give** (Task 3 Step 2, line 106).
+  - It has no per-class stats, so the per-class counts come from grouping entries by `originalFilePath`.
+  - It lists no "skipped" mutants, only `stats.skippedCount` (`JsonReporter.php:63-86`). Skipped means skipped for time (`MutationTestingRunner.php:174`), so per-class "skipped" can only be the run total, expected to be 0.
+- **N3. `--filter` is deprecated** since 0.34.0 and warns on every run (`SourceFilterOptions.php:135`). It still works. The current spelling is positional: `infection services/card/VCardBuilder.php services/presskit/KitArchiveBuilder.php services/presskit/ArchiveNameSanitizer.php`.
+- **N4. Composer's script timeout.** Composer kills a script after 300 s (`Config.php:36`). If one `composer mutation` run gets past that on this box, it dies part-way. Put `"Composer\\Config::disableProcessTimeout"` first in both scripts (`Config.php:657`).
+- **N5. `bin/mutants.php` ships inside the mu-plugin.** laika installs atelier as a source clone under `web/app/mu-plugins/atelier`, which is web-reachable on Bedrock. Every PHP file atelier ships now carries a guard: `services/**` uses `defined('ABSPATH') || exit;`, and `tests/bootstrap.php:2` uses `PHP_SAPI === 'cli' || exit;`. Open `bin/mutants.php` with the same CLI guard.
+- **N6. Task 4 Step 2 names the rows but not their values** (line 128).
+  - Source decides them. `?` is outside `SAFE_CHARACTERS` and is dropped, and `\p{M}` is kept (`ArchiveNameSanitizer.php:19-22`, `:65`). That matches the e2e title's "? dropped" (laika `tests/E2E/presskit.spec.ts:1114`).
+  - For example: `'question mark' => ['Wat zag de koe?', 'Documenten/Wat zag de koe.pdf']` and `'combining mark' => ["Danie\u{0308}l", "Documenten/Danie\u{0308}l.pdf"]`.
+  - The step calls this "the reviewer's" ruling. Round 1 left move 8 to Stefan, so he confirms it when he reads the plan.
 
 ## Premises checked
-- `^5.4`/`^2.16.1` required, lock gitignored → `composer.json:14-15`, `.gitignore:2` → holds
-- gate = dump-autoload, lint, test → `composer.json:37-41` → holds
-- host Composer reaches GitHub over SSH; newest `^5.4` is v5.4.1, newest `^2.16.1` is v2.17.0 → `git ls-remote` on both repos; Composer 2.8.9 → holds
-- baseline v2.17.0 resolves with core 5.4.1 → `v2.17.0:composer.json` requires `netdust/ntdst-core ^5.4` → holds
-- sites run those versions → laika `composer.lock`: core v5.4.1, baseline v2.17.0, atelier v0.11.0 → holds
-- the stale vendor held core 5.2.0 and baseline 2.6.0 → `~/Sites/atelier/vendor/composer/installed.json` (also PHPUnit 10.5.65, Brain Monkey 2.7.0, no bacon/bacon-qr-code) → holds
-- the gate "ran against" those versions, so a new version can fail a test → no `autoload` in core v5.4.1 or baseline v2.17.0; `tests/bootstrap.php:3`; `RelationTargetsTest.php:33`; `ProductionVocabulariesTest.php:27-37` → does not hold (B1)
-- 31 existing tests → 26 methods plus a 6-row provider (`RelationTargetsTest.php:43-55`) → holds
-- atelier's tests extend PHPUnit's `TestCase` → `tests/Unit/Support/LabelsTest.php:8,10` → holds
-- laika's `TestCase` is Brain Monkey set-up and tear-down → laika `tests/Unit/TestCase.php:19-33` (it also uses `MockeryPHPUnitIntegration`, which these files never exercise) → holds
-- the moved tests call no WordPress function → no `Functions\` in either file; the classes are pure (`VCardBuilder.php:9-14`, `KitArchiveBuilder.php:9-14`, `ArchiveNameSanitizer.php:9-13`) → holds (port nothing)
-- laika's command counts both files → laika PHPUnit 9.6.35, `CliArguments/Builder.php:234-235` → does not hold (S2)
-- `composer show A B` prints both packages → Composer 2.8.9 `ShowCommand`: the second argument is `version` and goes to `parseConstraints()` → does not hold (S1)
-- the three classes exist at the paths given → `services/card/VCardBuilder.php:15`, `services/presskit/KitArchiveBuilder.php:15`, `services/presskit/ArchiveNameSanitizer.php:14`; identical to laika's installed v0.11.0 → holds
-- `infection.json5` can name three classes as its source → 0.35.8 `resources/schema.json`: `source` is `directories` + `excludes` → does not hold as written (S5)
-- Infection works with PHPUnit 10.5 on PHP 8.3 → 0.35.8 requires `php ^8.3`; `PhpUnitAdapter.php:348` handles 10.5; `XmlConfigurationManipulator.php:216` adds `<source>` itself, so atelier's `phpunit.xml` needs none → holds
-- PCOV on the host → `php -m` → holds (installed now)
-- 18 DELETE candidates, 14 VCT and 4 KABT → audit :373-399 → holds
-- the move was decided at `card/review.md:27,38` → holds for VCardBuilderTest; KABT's move is ruling (c) (audit :664, :734) → holds
-- the KABT DELETEs lean on laika's integration tests → audit :392, :396-399, :732 → holds
-- `~/Sites/atelier` is laika's clone at v0.11.0 → symlink to `laika/web/app/mu-plugins/atelier`, HEAD 9d6cefe = v0.11.0 → holds
-- the source files are "laika `tests/Unit/...`" → present only on laika `feature/presskit` and `staging`, not `main` → holds only for the current checkout (S2)
-- the WordPress pack and a threat model are not owed → atelier has no `site.yml` and no `roots/wordpress` (policy `SKILL.md:69`); the spec flags no security surface → holds
-- spec path `~/Sites/netdust-wp-manager/specs/framework-tests/spec.md` → absent on disk; the file lives on branch `spec/framework-tests` → does not resolve (N1)
+- core v5.4.1 and baseline v2.17.0 declare no autoload; baseline requires `netdust/ntdst-core ^5.4`; no `composer/installers` → `git show v5.4.1:composer.json`, `git show v2.17.0:composer.json` → holds
+- newest `^5.4` is v5.4.1, newest `^2.16.1` is v2.17.0 → `git ls-remote --tags` on both repos → holds
+- the tests stub `ntdst_data` → `tests/Unit/Planning/RelationTargetsTest.php:33`, `tests/Unit/Production/ProductionVocabulariesTest.php:27-37` (the registry is returned at :37) → holds
+- 31 existing tests → 26 methods, plus `activityEdges`' 6 rows (`RelationTargetsTest.php:55`) → holds
+- `@composer show netdust/*` prints one line per installed package → Composer 2.8.9 `ShowCommand.php:300`, `:407` → holds
+- the gate's lint covers every PHP file outside vendor, so `bin/mutants.php` too → `composer.json` `scripts.lint` → holds
+- source blobs 8ebc744 and 343a099 at laika 3ca8368 → `git rev-parse 3ca8368:<path>` → holds
+- only lines 5 and 8 (VCT) and lines 5 and 9 (KABT) need to change; the files reference no laika fixture or helper → `NtdstTests\Unit\TestCase` is the only foreign symbol; `asset()` writes temp files (KABT:438-442) → holds
+- the providers are static, and `@dataProvider` doc-comments run on 10.5 → VCT:139, :297; KABT:223 → holds
+- the moved classes need only `ABSPATH`, which atelier's bootstrap defines → `VCardBuilder.php:7`, `KitArchiveBuilder.php:7`, `ArchiveNameSanitizer.php:7`; `tests/bootstrap.php:4` → holds
+- PHPUnit 10.5 runs several path arguments → `TestSuiteBuilder.php:44-47` (10.5.65) → holds
+- 86 tests (44 + 42) → method and provider-row count → holds
+- the host has PCOV, and its directory defaults to the worktree; no Xdebug; ext-zip, mbstring and iconv present → `php -m`; `php -i` from the worktree prints `pcov.directory => …/atelier-unit` → holds
+- Infection 0.35.8 needs PHP ^8.3 and pulls the `infection/extension-installer` plugin; no conflict with Brain Monkey's patchwork ≥2.1.25 → `composer.json` at 0.35.8 → holds
+- `source` takes `directories` and `excludes`; `logs.json` is in the schema; `testFramework` is `phpunit` → `resources/schema.json` → holds
+- the plain filter and the git-diff filter exclude each other; `--git-diff-base` is accepted with `--git-diff-lines` → `SourceFilterOptions.php:142-158`, `:254` → holds
+- uncovered mutants show up as "not covered" in the survivor list → `RunCommand.php:194-198`, `NodeTraverserFactory.php:103-104`, `JsonReporter.php:84` → does not hold without `--with-uncovered` (B1)
+- the JSON log lists killed mutants, so cited-line mutants can be quoted → `TargetDetectionStatusesProvider.php:150-165` → holds
+- the JSON log carries skipped mutants and per-class stats → `JsonReporter.php:63-86` → does not hold (N2)
+- the audit's DELETE rows, move 8 and the dead providers → laika `specs/test-prune/2026-10-18.md:375-399`, `:508`, `:585` → holds
+- KABT:142's cited lines cannot be reached by a mutator → `ArchiveNameSanitizer.php:34` is `private array $issued = [];`, `KitArchiveBuilder.php:66` is `new ArchiveNameSanitizer()` → holds
+- laika's DDEV and the host both run PHP 8.3 → laika `.ddev/config.yaml:4`; `php -v` 8.3.6 → holds
+- `netdust-gates:feature-review` exists → `netdust-gates/0.10.0/commands/feature-review.md` → holds
+- the spec path and its amended F1 → `~/Sites/netdust-wp-manager-framework-tests/specs/framework-tests/spec.md` at 4bb9b2a → holds

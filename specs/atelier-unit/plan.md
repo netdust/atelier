@@ -35,7 +35,7 @@
 
 ## Review Focus
 
-1. **Versions that look tested but are not** (spec F1). A gate that prints 5.4.1 implies nothing about running against it. → Task 1 says so in its commit and in the gate's output. No test is added to make up for it: a reflection check on core's API would be a shape test.
+1. **Versions that look tested but are not** (spec F1). A gate that prints 5.4.1 implies nothing about running against it. → Task 1 says so in its commit. No test is added to make up for it: a reflection check on core's API would be a shape test.
 2. **A moved test that silently changes meaning.** The real change is the runner: laika runs PHPUnit 9.6, atelier 10.5. The base class adds nothing, because these files call no WordPress function and set no Mockery expectation. → Task 2: the diff against laika's blob shows only the namespace and `use` lines changed, and the files run green on 10.5.
 3. **A DELETE that looks safe because no mutant reaches the behaviour it guards.** For example KABT's "each archive names from scratch": the audit's cited line is a property no mutator makes static. → Task 4 quotes Task 3's mutants on each candidate's cited production lines. A candidate with none is "not judged by Infection" and stays.
 4. **Two tests that cover each other both going.** → Task 4 keeps the earlier proven removals in every later run.
@@ -89,24 +89,24 @@
 - Modify: `composer.json`:
   - require-dev `infection/infection`;
   - `allow-plugins` if Infection's Composer plugin asks;
-  - `scripts.mutation`: `infection --filter=services/card/VCardBuilder.php,services/presskit/KitArchiveBuilder.php,services/presskit/ArchiveNameSanitizer.php --log-verbosity=all`;
-  - `scripts.mutation:diff`: `infection --git-diff-lines --git-diff-base=origin/main --log-verbosity=all`, the review-time run of F6. The plain filter and the git-diff filter exclude each other, hence two scripts.
+  - `scripts.mutation`: `Composer\\Config::disableProcessTimeout` (Composer otherwise kills a script after 300 s), then `infection services/card/VCardBuilder.php services/presskit/KitArchiveBuilder.php services/presskit/ArchiveNameSanitizer.php --with-uncovered --log-verbosity=all`. The positional filter replaces the deprecated `--filter`. `--with-uncovered` is required: since 0.31 Infection generates no mutant for code no test covers, so without it a removed test's only-covered lines vanish from the list instead of showing up as "not covered".
+  - `scripts.mutation:diff`: the same timeout line, then `infection --git-diff-lines --git-diff-base=origin/main --with-uncovered --log-verbosity=all`. This is the review-time run of F6. The positional filter and the git-diff filter exclude each other, hence two scripts.
 - Create: `infection.json5`:
   - `source.directories: ["services", "shared"]` (Infection's `source` takes directories, not files);
   - `testFramework: "phpunit"`;
   - `logs.json: "build/infection/mutation.json"` and `logs.text: "build/infection/mutation.txt"`.
 - Modify: `.gitignore` (`/build/`)
-- Create: `bin/mutants.php` (or a `composer` script calling it). It reads `build/infection/mutation.json` and prints one sorted line per survivor (status, mutator, file, line, diff hash), so two runs compare with `diff`.
+- Create: `bin/mutants.php`, opening with the CLI guard every shipped PHP file carries (`PHP_SAPI === 'cli' || exit;`, as `tests/bootstrap.php:2`), since laika installs atelier web-reachable. It reads a JSON log and prints `stats.totalMutantsCount` as its first line, then one sorted line per survivor (status, mutator, file, line, diff hash), so two runs compare with `diff` and a vanished mutant cannot pass unnoticed.
 - Create: `specs/mutation/<date>.md`
 
 - [ ] **Step 1:** install Infection, configure it, and run `composer mutation`.
 - [ ] **Step 2:** write `specs/mutation/<date>.md`. It records:
   - the command;
   - the Infection version and the coverage driver;
-  - per class, from the JSON log: the score and the killed / escaped / timed-out / not-covered / skipped counts;
+  - per class, by grouping the JSON log's entries on `originalFilePath` (the log has no per-class stats): the killed / escaped / timed-out / not-covered counts, and the run's `stats.skippedCount` (skipped means skipped for time, so it is a run total, expected 0);
   - every survivor as `bin/mutants.php` prints it, with the original → mutated code.
 
-  It is a report: change no test because of it.
+  It is a report: change no test because of it. Copy the run's JSON to `build/infection/baseline.json` and its `bin/mutants.php` list to `build/infection/accepted.txt`. Task 4 reads them, because each Task 4 run overwrites `mutation.json`.
 - [ ] **Step 3:** `scripts.gate` does not call Infection (quote it); `git check-ignore -q composer.lock` exits 1. Commit (`test: report-only mutation baseline on the card and the zip, and a changed-code mutation run for review — framework-tests F6`).
 
 ### Task 4: The proven prune
@@ -120,12 +120,16 @@
 - **The KABT four:** the report says they leaned on laika's integration tests, which atelier's run cannot see. Judge them on atelier's own tests alone.
 
 - [ ] **Step 1:** for each candidate, in the report's order:
-  - Quote Task 3's mutants on its cited production lines. If there are none, the verdict is **not judged by Infection**: the test stays, and the report names it for Stefan.
-  - Otherwise, remove the candidate, keeping every earlier proven removal, and run `composer mutation`. Compare `bin/mutants.php`'s list with the previous run's using `diff`.
-    - **Identical:** the DELETE is proven.
+  - Quote Task 3's mutants on its cited production lines, killed ones included, from `build/infection/baseline.json`. If none of them is anything other than "not covered", the verdict is **not judged by Infection**: the test stays, and the report names it for Stefan.
+  - Otherwise, remove the candidate, keeping every earlier proven removal, and run `composer mutation`. Compare `bin/mutants.php`'s list with `build/infection/accepted.txt`, the last accepted state, using `diff`.
+    - **Identical:** the DELETE is proven, and this run's list becomes `accepted.txt`.
     - **A new survivor:** restore the test, or first move its killing assertion into the cited cover, and name the mutant.
   - When a removal leaves a data provider unused (for example `emptyFieldProvider`, `lineTerminatorProvider`, audit :585), delete the provider with its last test.
-- [ ] **Step 2:** ruling (the reviewer's, for the prune audit's move 8): add the `editorNames` rows "question mark" and "combining mark" to KABT (audit :506-508). laika's `presskit.spec.ts:1114` DELETE needs them, and they now live here. Prove them green.
+- [ ] **Step 2:** ruling (the reviewer's, by delegation, for the prune audit's move 8; Stefan sees it in this plan): add the `editorNames` rows to KABT (audit :506-508), with values the sanitizer decides (`ArchiveNameSanitizer.php:19-22`, `:65`):
+  - `'question mark' => ['Wat zag de koe?', 'Documenten/Wat zag de koe.pdf']`;
+  - `'combining mark' => ["Danie\u{0308}l", "Documenten/Danie\u{0308}l.pdf"]`.
+
+  laika's `presskit.spec.ts:1114` DELETE needs them, and they now live here. Prove them green.
 - [ ] **Step 3:** quote, per candidate, the verdict and the `diff` output (or "identical") in the report's "Prune" section. Then run `composer gate` and `composer mutation` once more: the final survivor list equals Task 3's, plus or minus only what the report names.
 - [ ] **Step 4:** commit (`test: prune the card's and the zip's unit tests, each removal proven by Infection's survivor list — framework-tests F6`).
 
