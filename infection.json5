@@ -1,0 +1,13 @@
+{
+    "source": {
+        "directories": ["services", "shared"]
+    },
+    "bootstrap": "tests/bootstrap.php",
+    "timeout": 20,
+    "testFramework": "phpunit",
+    "testFrameworkExtraArgs": "--exclude-group=no-mutation",
+    "logs": {
+        "json": "build/infection/mutation.json",
+        "text": "build/infection/mutation.txt"
+    }
+}
