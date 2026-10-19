@@ -35,6 +35,7 @@
         "lint": "find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l",
         "test": "phpunit",
         "gate": [
+            "@composer show 'netdust/*'",
             "@composer dump-autoload -q",
             "@lint",
             "@test"
