@@ -82,7 +82,8 @@ final class VCardBuilderTest extends TestCase
         $this->assertStringContainsString("\r\nN:;Jan;;;\r\n", $givenOnly);
     }
 
-    public function test_a_minimal_source_is_a_valid_record_with_no_empty_line(): void
+    /** @dataProvider modes */
+    public function test_a_minimal_source_is_a_valid_record_with_no_empty_line(bool $compact, string $version): void
     {
         $output = VCardBuilder::build([
             'name'    => 'Fien',
@@ -90,8 +91,8 @@ final class VCardBuilderTest extends TestCase
             'family'  => 'Fien',
             'phone'   => '+ ( ) -',
             'company' => 'not-an-array',
-        ]);
-        $props = $this->assertWellFormed($output, '4.0');
+        ], $compact);
+        $props = $this->assertWellFormed($output, $version);
 
         $this->assertSame('Fien', $props['FN'][0] ?? null);
         foreach (self::contentLines($output) as $line) {
@@ -99,6 +100,15 @@ final class VCardBuilderTest extends TestCase
         }
         $this->assertArrayNotHasKey('ORG', $props);
         $this->assertArrayNotHasKey('TEL', $props);
+    }
+
+    /** @return array<string, array{bool, string}> */
+    public static function modes(): array
+    {
+        return [
+            'full'    => [false, '4.0'],
+            'compact' => [true, '3.0'],
+        ];
     }
 
     public function test_a_non_scalar_value_is_dropped_not_coerced(): void
