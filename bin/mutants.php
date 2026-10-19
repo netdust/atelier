@@ -6,8 +6,8 @@ PHP_SAPI === 'cli' || exit;
 
 const SURVIVORS = ['escaped' => 'escapedCount', 'timeouted' => 'timeOutCount', 'uncovered' => 'notCoveredCount'];
 
-$log = json_decode((string) file_get_contents($argv[1] ?? 'build/infection/mutation.json'), true, 512, JSON_THROW_ON_ERROR);
 $root = dirname(__DIR__) . '/';
+$log = json_decode((string) file_get_contents($argv[1] ?? $root . 'build/infection/mutation.json'), true, 512, JSON_THROW_ON_ERROR);
 
 $lines = [];
 foreach (SURVIVORS as $status => $count) {
