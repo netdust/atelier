@@ -132,6 +132,17 @@ final class KitArchiveBuilderTest extends TestCase
         $this->assertSame(['Documenten/Dossier.pdf', 'Documenten/Dossier-1.pdf'], $this->names($zip));
     }
 
+    public function test_a_suffix_skips_a_name_an_editor_already_took(): void
+    {
+        $zip = $this->build([$this->collection('Documenten', [
+            $this->entry('Dossier-1', $this->asset('one.pdf')),
+            $this->entry('Dossier', $this->asset('two.pdf')),
+            $this->entry('Dossier', $this->asset('three.pdf')),
+        ])]);
+
+        $this->assertSame(['Documenten/Dossier-1.pdf', 'Documenten/Dossier.pdf', 'Documenten/Dossier-2.pdf'], $this->names($zip));
+    }
+
     public function test_each_archive_names_from_scratch(): void
     {
         $collections = [$this->collection('Documenten', [
@@ -336,6 +347,11 @@ final class KitArchiveBuilderTest extends TestCase
         $this->assertSame('system', (new ArchiveNameSanitizer())->fromPath('C:\\Windows\\system'));
     }
 
+    public function test_a_trailing_dot_is_not_an_extension(): void
+    {
+        $this->assertSame('Pers', (new ArchiveNameSanitizer())->sanitize('Pers.'));
+    }
+
     /**
      * A long title would push Content-Disposition past a proxy's buffer (a 502), and an entry over 255
      * bytes fails to extract: each stem is cut at 120 bytes, on a character boundary, its extension kept.
@@ -363,6 +379,27 @@ final class KitArchiveBuilderTest extends TestCase
             $this->assertLessThanOrEqual(120, strlen($stem), "$name: a stem of at most 120 bytes");
             $this->assertTrue(mb_check_encoding($name, 'UTF-8'), "$name is valid UTF-8");
         }
+    }
+
+    public function test_an_ascii_stem_keeps_all_120_bytes(): void
+    {
+        $name = (new ArchiveNameSanitizer())->sanitize(str_repeat('x', 130) . '.zip');
+
+        $this->assertSame(str_repeat('x', 120) . '.zip', $name);
+    }
+
+    public function test_dots_before_a_long_stem_spend_none_of_its_bytes(): void
+    {
+        $name = (new ArchiveNameSanitizer())->sanitize('...' . str_repeat('x', 130) . '.zip');
+
+        $this->assertSame(str_repeat('x', 120) . '.zip', $name);
+    }
+
+    public function test_a_cut_never_ends_on_a_space(): void
+    {
+        $name = (new ArchiveNameSanitizer())->sanitize(str_repeat('x', 119) . ' tail.pdf');
+
+        $this->assertSame(str_repeat('x', 119) . '.pdf', $name);
     }
 
     /** @param list<array{label: string, entries: list<array<string, string>>}> $collections */

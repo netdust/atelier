@@ -73,6 +73,15 @@ final class VCardBuilderTest extends TestCase
         $this->assertSame(['N:Fien;;;;'], self::linesOf(VCardBuilder::build(self::MONONYM), 'N'));
     }
 
+    public function test_n_needs_a_name_part_and_carries_a_given_name_alone(): void
+    {
+        $nameless = VCardBuilder::build(['name' => '', 'given' => '', 'family' => ''] + self::PERSON);
+        $givenOnly = VCardBuilder::build(['given' => 'Jan', 'family' => ''] + self::PERSON);
+
+        $this->assertDoesNotMatchRegularExpression('/(?:^|\r\n)N:/', $nameless);
+        $this->assertStringContainsString("\r\nN:;Jan;;;\r\n", $givenOnly);
+    }
+
     public function test_a_minimal_source_is_a_valid_record_with_no_empty_line(): void
     {
         $output = VCardBuilder::build([
@@ -99,6 +108,20 @@ final class VCardBuilderTest extends TestCase
         $this->assertStringNotContainsString('Array', $output);
         $this->assertArrayNotHasKey('TITLE', self::parse($output));
         $this->assertArrayNotHasKey('EMAIL', self::parse($output));
+    }
+
+    public function test_values_are_trimmed_and_a_blank_one_emits_no_line(): void
+    {
+        $record = VCardBuilder::build([
+            'title'   => " zakelijk leider\n",
+            'email'   => '   ',
+            'company' => ['name' => "Laika \n", 'url' => ' https://laika.be '],
+        ] + self::PERSON);
+
+        $this->assertStringContainsString("\r\nTITLE:zakelijk leider\r\n", $record);
+        $this->assertStringContainsString("\r\nORG:Laika\r\n", $record);
+        $this->assertStringContainsString("\r\nURL:https://laika.be\r\n", $record);
+        $this->assertStringNotContainsString('EMAIL:', $record);
     }
 
     public function test_a_semicolon_in_the_company_is_escaped(): void
@@ -184,6 +207,13 @@ final class VCardBuilderTest extends TestCase
         $this->assertSame(['TEL:0312345'], self::linesOf($inner, 'TEL'));
     }
 
+    public function test_dialable_keeps_digits_and_only_a_leading_plus(): void
+    {
+        $this->assertSame('+32031234567', VCardBuilder::dialable('+32 (0)3 123-45-67'));
+        $this->assertSame('0312345', VCardBuilder::dialable('03 + 123 +45'));
+        $this->assertSame('', VCardBuilder::dialable('+ ( ) -'));
+    }
+
     public function test_compact_mode_folds_long_lines_on_octets(): void
     {
         $record = VCardBuilder::build(['title' => str_repeat('é', 60)] + self::PERSON, true);
@@ -260,6 +290,13 @@ final class VCardBuilderTest extends TestCase
         $this->assertSame($at, VCardBuilder::foldLine($at));
         $this->assertStringContainsString("\r\n", VCardBuilder::foldLine($over));
         $this->assertSame($over, self::unfold(VCardBuilder::foldLine($over)));
+    }
+
+    public function test_a_fold_fills_each_physical_line_to_75_octets(): void
+    {
+        $folded = VCardBuilder::foldLine('NOTE:' . str_repeat('x', 200));
+
+        $this->assertSame([75, 75, 57], array_map('strlen', explode("\r\n", $folded)));
     }
 
     public function test_continuation_lines_start_with_exactly_one_space(): void
