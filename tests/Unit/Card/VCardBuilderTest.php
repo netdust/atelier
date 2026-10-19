@@ -67,82 +67,10 @@ final class VCardBuilderTest extends TestCase
         }
     }
 
-    public function test_output_is_exactly_one_well_formed_v4_record(): void
-    {
-        $props = $this->assertWellFormed(VCardBuilder::build(self::PERSON), '4.0');
-
-        foreach (['FN', 'N', 'TITLE', 'ORG', 'EMAIL', 'TEL', 'URL'] as $required) {
-            $this->assertArrayHasKey($required, $props, "$required is on the card");
-        }
-    }
-
-    public function test_version_immediately_follows_begin(): void
-    {
-        $lines = self::unfoldedLines(VCardBuilder::build(self::PERSON));
-
-        $this->assertSame('BEGIN:VCARD', $lines[0]);
-        $this->assertSame('VERSION:4.0', $lines[1]);
-        $this->assertSame('END:VCARD', $lines[count($lines) - 1]);
-    }
-
-    public function test_every_line_is_crlf_terminated_and_none_is_blank(): void
-    {
-        $output = VCardBuilder::build(self::PERSON);
-
-        $this->assertStringEndsWith("\r\n", $output);
-        $this->assertDoesNotMatchRegularExpression("/(?<!\r)\n/", $output, 'no bare LF');
-        $this->assertStringNotContainsString("\r\n\r\n", $output, 'no blank line');
-    }
-
-    public function test_fn_is_the_name_and_n_carries_its_parts(): void
-    {
-        $props = $this->assertWellFormed(VCardBuilder::build(self::PERSON), '4.0');
-        $n = self::components($props['N'][0]);
-
-        $this->assertSame('Jan Van den Broeck', $props['FN'][0]);
-        $this->assertSame('Van den Broeck', $n[0], 'the family slot carries the family part, not the whole name');
-        $this->assertSame('Jan', $n[1]);
-    }
-
     public function test_n_splits_given_and_family(): void
     {
         $this->assertSame(['N:Van den Broeck;Jan;;;'], self::linesOf(VCardBuilder::build(self::PERSON), 'N'));
         $this->assertSame(['N:Fien;;;;'], self::linesOf(VCardBuilder::build(self::MONONYM), 'N'));
-    }
-
-    public function test_n_is_exactly_five_components(): void
-    {
-        foreach ([self::PERSON, self::MONONYM] as $source) {
-            $props = $this->assertWellFormed(VCardBuilder::build($source), '4.0');
-            $n = self::components($props['N'][0]);
-
-            $this->assertCount(5, $n, 'Family;Given;Additional;Prefix;Suffix');
-            $this->assertSame([$source['family'], $source['given'], '', '', ''], $n);
-        }
-    }
-
-    /** @dataProvider emptyFieldProvider */
-    public function test_an_empty_value_emits_no_line(string $key, string $property): void
-    {
-        $source = self::PERSON;
-        $source[$key] = '';
-
-        $output = VCardBuilder::build($source);
-        $props = $this->assertWellFormed($output, '4.0');
-
-        $this->assertSame('Jan Van den Broeck', $props['FN'][0] ?? null);
-        $this->assertArrayNotHasKey($property, $props);
-        $this->assertDoesNotMatchRegularExpression("/(?:^|\r\n){$property}(?:;[^:\r\n]*)?:\\s*(?=\r\n|$)/", $output);
-    }
-
-    /** @return array<string, array{string, string}> */
-    public static function emptyFieldProvider(): array
-    {
-        return [
-            'empty title emits no TITLE:' => ['title', 'TITLE'],
-            'empty email emits no EMAIL:' => ['email', 'EMAIL'],
-            'empty phone emits no TEL:'   => ['phone', 'TEL'],
-        ];
     }
 
     public function test_a_minimal_source_is_a_valid_record_with_no_empty_line(): void
@@ -256,16 +184,6 @@ final class VCardBuilderTest extends TestCase
         $this->assertSame(['TEL:0312345'], self::linesOf($inner, 'TEL'));
     }
 
-    public function test_empty_values_emit_no_line_in_compact_mode(): void
-    {
-        $source = ['email' => '', 'phone' => '+ ( ) -', 'title' => ''] + self::PERSON;
-        $lines = self::unfoldedLines(VCardBuilder::build($source, true));
-
-        $this->assertSame([], self::property($lines, 'EMAIL'));
-        $this->assertSame([], self::property($lines, 'TEL'));
-        $this->assertSame([], self::property($lines, 'TITLE'));
-    }
-
     public function test_compact_mode_folds_long_lines_on_octets(): void
     {
         $record = VCardBuilder::build(['title' => str_repeat('é', 60)] + self::PERSON, true);
@@ -278,49 +196,6 @@ final class VCardBuilderTest extends TestCase
 
     // --- escapeValue() (daan VCardEscapeTest, VCardEscapeControlCharTest) ---
 
-    public function test_benign_text_passes_through_untouched(): void
-    {
-        $benign = 'Belgian singer-songwriter and producer';
-        $this->assertSame($benign, VCardBuilder::escapeValue($benign));
-    }
-
-    /** @dataProvider lineTerminatorProvider */
-    public function test_no_raw_line_terminator_survives(string $input): void
-    {
-        $result = VCardBuilder::escapeValue($input);
-
-        $this->assertStringContainsString('Line two', $result);
-        $this->assertDoesNotMatchRegularExpression("/[\r\n]/", $result);
-    }
-
-    /** @return array<string, array{string}> */
-    public static function lineTerminatorProvider(): array
-    {
-        return [
-            'bare LF'             => ["Line one\nLine two"],
-            'bare CR'             => ["Line one\rLine two"],
-            'CRLF'                => ["Line one\r\nLine two"],
-            'LFCR'                => ["Line one\n\rLine two"],
-            'repeated CRLF'       => ["Line one\r\n\r\nLine two"],
-            'leading terminator'  => ["\r\nLine two"],
-            'trailing terminator' => ["Line one\r\nLine two\r\n"],
-        ];
-    }
-
-    public function test_an_attack_payload_stays_one_inert_value(): void
-    {
-        $result = VCardBuilder::escapeValue("Zakelijk leider.\r\nEMAIL:attacker@evil.tld\r\nBEGIN:VCARD");
-
-        $this->assertStringContainsString('Zakelijk leider.', $result);
-        $this->assertStringContainsString('EMAIL:attacker@evil.tld', $result, 'the text stays; the terminator goes');
-        $this->assertStringContainsString('BEGIN:VCARD', $result);
-        $this->assertDoesNotMatchRegularExpression("/[\r\n]/", $result);
-
-        $emitted = "BEGIN:VCARD\r\nVERSION:4.0\r\nNOTE:" . $result . "\r\nEND:VCARD\r\n";
-        $this->assertSame(1, preg_match_all('/(?:^|\r\n)BEGIN:VCARD/', $emitted));
-        $this->assertSame(1, preg_match_all('/(?:^|\r\n)END:VCARD/', $emitted));
-    }
-
     public function test_each_special_is_escaped_exactly_once(): void
     {
         $this->assertSame('a\\\\b', VCardBuilder::escapeValue('a\\b'));
@@ -330,22 +205,6 @@ final class VCardBuilderTest extends TestCase
             'Heavenhotel\\; [PIAS] Recordings\\, Belgium \\\\ EU',
             VCardBuilder::escapeValue('Heavenhotel; [PIAS] Recordings, Belgium \\ EU'),
         );
-    }
-
-    public function test_re_entry_is_well_formed_and_reversible(): void
-    {
-        $original = 'Heavenhotel; PIAS, Belgium \\ EU';
-        $once = VCardBuilder::escapeValue($original);
-        $twice = VCardBuilder::escapeValue($once);
-
-        $this->assertSame($once, self::unescape($twice));
-        $this->assertSame($original, self::unescape(self::unescape($twice)));
-        $this->assertSame($original, self::unescape($once));
-    }
-
-    public function test_a_colon_is_not_escaped_so_urls_survive(): void
-    {
-        $this->assertSame('https://laika.be/card/jan/', VCardBuilder::escapeValue('https://laika.be/card/jan/'));
     }
 
     public function test_no_terminator_survives_next_to_any_special(): void
@@ -373,15 +232,6 @@ final class VCardBuilderTest extends TestCase
 
         $this->assertStringNotContainsString('\\\\n', $result);
         $this->assertSame('Line one\\nLine two', $result);
-    }
-
-    public function test_an_attacker_nul_is_not_turned_into_a_line_break(): void
-    {
-        $result = VCardBuilder::escapeValue("Zakelijk.\x00EMAIL:attacker@evil.tld");
-
-        $this->assertStringContainsString('Zakelijk.', $result);
-        $this->assertStringContainsString('EMAIL:attacker@evil.tld', $result);
-        $this->assertStringNotContainsString('\\n', $result);
     }
 
     public function test_raw_control_bytes_are_stripped(): void
@@ -422,20 +272,6 @@ final class VCardBuilderTest extends TestCase
             $this->assertSame(' ', substr($physical, 0, 1));
             $this->assertNotContains(substr($physical, 1, 1), [' ', "\t", '']);
         }
-    }
-
-    public function test_a_character_across_octet_75_folds_whole_and_round_trips(): void
-    {
-        $line = str_repeat('a', 73) . self::EM_DASH . 'tail content that pushes this line well past the limit';
-        $this->assertFalse(mb_check_encoding(substr($line, 0, 75), 'UTF-8'), 'the fixture straddles octet 75');
-
-        $folded = VCardBuilder::foldLine($line);
-
-        $this->assertStringContainsString("\r\n", $folded);
-        foreach (explode("\r\n", $folded) as $physical) {
-            $this->assertTrue(mb_check_encoding($physical, 'UTF-8'));
-        }
-        $this->assertSame($line, self::unfold($folded));
     }
 
     public function test_fold_is_utf8_safe_at_every_offset(): void

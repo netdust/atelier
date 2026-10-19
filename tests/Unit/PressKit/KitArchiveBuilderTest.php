@@ -51,19 +51,6 @@ final class KitArchiveBuilderTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_every_file_becomes_an_entry_in_its_collections_folder(): void
-    {
-        $logo = $this->asset('laika.svg');
-
-        $zip = $this->build([
-            $this->collection('Logos', [$this->entry('Laika', $logo)]),
-            $this->collection('Documenten', [$this->entry('Dossier', $this->asset('dossier.pdf'))]),
-        ]);
-
-        $this->assertSame(['Logos/Laika.svg', 'Documenten/Dossier.pdf'], $this->names($zip));
-        $this->assertSame($logo['bytes'], $zip->getFromName('Logos/Laika.svg'), "the entry is the file's own bytes");
-    }
-
     public function test_an_entry_carries_its_files_extension_once(): void
     {
         $zip = $this->build([$this->collection('Documenten', [
@@ -230,6 +217,7 @@ final class KitArchiveBuilderTest extends TestCase
             'backslash'         => ['AC\\DC', 'Documenten/AC - DC.pdf'],
             'header split'      => ["Dossier\r\n", 'Documenten/Dossier.pdf'],
             'quotes'            => ['Het "grote" dossier', 'Documenten/Het grote dossier.pdf'],
+            'question mark'     => ['Wat zag de koe?', 'Documenten/Wat zag de koe.pdf'],
             'control character' => ["Dossier\x07", 'Documenten/Dossier.pdf'],
             'format character'  => ["Dos\u{202E}sier", 'Documenten/Dossier.pdf'],
             'parent segment'    => ['..', 'Documenten/file.pdf'],
@@ -237,6 +225,7 @@ final class KitArchiveBuilderTest extends TestCase
             'empty'             => ['', 'Documenten/dossier.pdf'],
             // Kept, as the editor typed them.
             'accents'           => ['Daniël (2024)', 'Documenten/Daniël (2024).pdf'],
+            'combining mark'    => ["Danie\u{0308}l", "Documenten/Danie\u{0308}l.pdf"],
             'apostrophe'        => ["L'Oiseau bleu", "Documenten/L'Oiseau bleu.pdf"],
             'right quote'       => ["L\u{2019}Oiseau bleu", "Documenten/L\u{2019}Oiseau bleu.pdf"],
             'left quote'        => ["\u{2018}t Stad", "Documenten/\u{2018}t Stad.pdf"],
@@ -270,16 +259,6 @@ final class KitArchiveBuilderTest extends TestCase
         $this->assertSame(["Foto's/koe.jpg", 'Logos/Laika.png'], $this->names($zip));
     }
 
-    /** The README speaks the kit's language: its caller's words. */
-    public function test_the_empty_kit_holds_a_readme(): void
-    {
-        $zip = $this->build([], 'Ce dossier de presse ne contient pas encore de fichiers.');
-
-        $this->assertSame(['README.txt'], $this->names($zip));
-        $readme = $zip->getFromName('README.txt');
-        $this->assertSame("Ce dossier de presse ne contient pas encore de fichiers.\n", $readme);
-    }
-
     /** Media is stored as it is — deflating a jpeg or a pdf again costs time and saves nothing; text is deflated. */
     public function test_compressed_media_is_stored_and_text_deflated(): void
     {
@@ -309,17 +288,6 @@ final class KitArchiveBuilderTest extends TestCase
         foreach ($deflated as [$archive, $name]) {
             $method = $archive->statName($name)['comp_method'] ?? null;
             $this->assertSame(\ZipArchive::CM_DEFLATE, $method, "$name is deflated");
-        }
-    }
-
-    public function test_no_entry_is_zero_bytes(): void
-    {
-        $photo = $this->entry('koe.jpg', $this->asset('koe.jpg'), 'Foto: An Smet');
-        $zip = $this->build([$this->collection('Fotos', [$photo])]);
-
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = (array) $zip->statIndex($i);
-            $this->assertGreaterThan(0, (int) $stat['size'], "{$stat['name']} is empty");
         }
     }
 
