@@ -42,7 +42,9 @@
         ],
         "mutation": [
             "Composer\\Config::disableProcessTimeout",
-            "infection services/card/VCardBuilder.php services/presskit/KitArchiveBuilder.php services/presskit/ArchiveNameSanitizer.php --with-uncovered --threads=4 --log-verbosity=all"
+            "rm -f build/infection/mutation.json",
+            "infection services/card/VCardBuilder.php services/presskit/KitArchiveBuilder.php services/presskit/ArchiveNameSanitizer.php --with-uncovered --threads=4 --log-verbosity=all",
+            "@php bin/mutants.php"
         ],
         "mutation:diff": [
             "Composer\\Config::disableProcessTimeout",
