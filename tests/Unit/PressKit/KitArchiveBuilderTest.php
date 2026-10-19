@@ -6,6 +6,7 @@ namespace AtelierTests\Unit\PressKit;
 
 use Atelier\PressKit\ArchiveNameSanitizer;
 use Atelier\PressKit\KitArchiveBuilder;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -53,12 +54,17 @@ final class KitArchiveBuilderTest extends TestCase
 
     public function test_an_entry_carries_its_files_extension_once(): void
     {
+        $dossier = $this->asset('dossier.pdf');
+        $rider = $this->asset('rider.pdf');
+
         $zip = $this->build([$this->collection('Documenten', [
-            $this->entry('Dossier', $this->asset('dossier.pdf')),
-            $this->entry('Rider.pdf', $this->asset('rider.pdf')),
+            $this->entry('Dossier', $dossier),
+            $this->entry('Rider.pdf', $rider),
         ])]);
 
         $this->assertSame(['Documenten/Dossier.pdf', 'Documenten/Rider.pdf'], $this->names($zip));
+        $this->assertSame($dossier['bytes'], $zip->getFromName('Documenten/Dossier.pdf'), "the entry is its own file's bytes");
+        $this->assertSame($rider['bytes'], $zip->getFromName('Documenten/Rider.pdf'), "the entry is its own file's bytes");
     }
 
     public function test_photo_credits_are_written_beside_the_photos(): void
@@ -155,7 +161,11 @@ final class KitArchiveBuilderTest extends TestCase
         $this->assertSame(['4242' => 'has no file on disk'], $result['skipped'], 'reported by the caller’s reference');
     }
 
-    /** libzip reads a source only at close(): an asset it cannot read is skipped up front, never an empty zip. */
+    /**
+     * libzip reads a source only at close(): an asset it cannot read is skipped up front, never an empty zip.
+     * Out of mutation runs: Infection's include interceptor reports an unreadable path as missing.
+     */
+    #[Group('no-mutation')]
     public function test_an_unreadable_file_is_skipped_and_reported(): void
     {
         $locked = $this->asset('locked.jpg');
@@ -257,6 +267,16 @@ final class KitArchiveBuilderTest extends TestCase
         ]);
 
         $this->assertSame(["Foto's/koe.jpg", 'Logos/Laika.png'], $this->names($zip));
+    }
+
+    /** The README speaks the kit's language: its caller's words. */
+    public function test_the_empty_kit_holds_a_readme(): void
+    {
+        $zip = $this->build([], "  Ce dossier de presse ne contient pas encore de fichiers.\n");
+
+        $this->assertSame(['README.txt'], $this->names($zip));
+        $readme = $zip->getFromName('README.txt');
+        $this->assertSame("Ce dossier de presse ne contient pas encore de fichiers.\n", $readme);
     }
 
     /** Media is stored as it is — deflating a jpeg or a pdf again costs time and saves nothing; text is deflated. */
