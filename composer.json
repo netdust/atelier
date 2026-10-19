@@ -34,6 +34,10 @@
     "scripts": {
         "lint": "find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l",
         "test": "phpunit",
+        "test:int": [
+            "Composer\\Config::disableProcessTimeout",
+            "\"$HOME/Sites/ntdst-testbed/bin/test-package\" netdust/atelier \"$(pwd)\""
+        ],
         "gate": [
             "@composer show 'netdust/*'",
             "@composer dump-autoload -q",
