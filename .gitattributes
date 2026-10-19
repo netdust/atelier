@@ -1,2 +1,5 @@
 /vendor export-ignore
 /build export-ignore
+/memory export-ignore
+/.superpowers export-ignore
+/specs export-ignore
