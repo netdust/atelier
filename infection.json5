@@ -1,0 +1,12 @@
+{
+    "source": {
+        "directories": ["services", "shared"]
+    },
+    "bootstrap": "tests/bootstrap.php",
+    "timeout": 20,
+    "testFramework": "phpunit",
+    "logs": {
+        "json": "build/infection/mutation.json",
+        "text": "build/infection/mutation.txt"
+    }
+}
